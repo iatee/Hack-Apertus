@@ -63,7 +63,24 @@ logs `"event": "answer"` with `calls_per_answer`:
 docker compose logs backend | grep '"event": "answer"'
 ```
 
-Code layout: `src/backend/main.py` (FastAPI), `src/backend/llm.py` (Apertus client + call counter).
+Interview loop:
+
+```bash
+curl -X POST localhost:8000/session -H 'Content-Type: application/json' \
+     -d '{"role": "Junior Data Analyst", "language": "de"}'          # -> session_id + first question
+curl -X POST localhost:8000/session/<session_id>/answer -H 'Content-Type: application/json' \
+     -d '{"answer": "Ich habe Wirtschaftsinformatik studiert ..."}'  # -> analysis + next question
+```
+
+Each answer runs a LangGraph turn: one **analysis call** (6 criteria scored 1-5, JSON) and then one
+**interviewer call** (follow-up question or the next phase). If the analysis JSON can't be used, the
+analysis call is retried, up to 3 attempts in total. Retries count as LLM calls, so the worst case is 4 calls
+per answer and the normal case is 2. Sessions are kept in memory and lost when the service restarts.
+
+Code layout: `src/backend/main.py` (FastAPI), `src/backend/llm.py` (Apertus client + call counter),
+`src/backend/interview/` (`graph.py` LangGraph loop, `parsing.py` robust JSON parsing, `prompts.py` criteria + phases).
+
+Tests (Python 3.12): `pip install -r src/backend/requirements-dev.txt && pytest`
 
 ## Data
 The `data/` directory must not exceed 100 MB.
