@@ -7,6 +7,7 @@ import {
   type AnswerResponse,
   type AppConfig,
   type CreateSessionRequest,
+  type CriterionId,
   type HistoryEntry,
   type LanguageCode,
   type Phase,
@@ -126,6 +127,112 @@ const tips: Record<LanguageCode, string> = {
   fr: "Bonne réponse ! Essaie d'ajouter un exemple concret.",
   it: "Bella risposta! Prova ad aggiungere un esempio concreto.",
   gsw: "Guet gseit! Probier no es konkrets Bispiil z nenne.",
+};
+
+// Fixed report content (the real report is written by the LLM in the interview language)
+const reportScores: { id: CriterionId; score: number }[] = [
+  { id: "relevance", score: 4 },
+  { id: "structure", score: 3 },
+  { id: "examples", score: 4 },
+  { id: "motivation", score: 4 },
+  { id: "language", score: 5 },
+  { id: "self_reflection", score: 2 },
+];
+
+const reportTexts: Record<
+  LanguageCode,
+  {
+    labels: Record<CriterionId, string>;
+    comments: Record<CriterionId, string>;
+    strengths: string[];
+    tip: string;
+    exampleAnswer: string;
+  }
+> = {
+  de: {
+    labels: {
+      relevance: "Relevanz",
+      structure: "Struktur",
+      examples: "Konkrete Beispiele",
+      motivation: "Motivation",
+      language: "Sprache & Ausdruck",
+      self_reflection: "Selbstreflexion",
+    },
+    comments: {
+      relevance: "Du bist meistens direkt auf die Frage eingegangen.",
+      structure: "Gib deinen Antworten einen klaren Anfang und Schluss.",
+      examples: "Dein Beispiel aus der Freizeit war anschaulich.",
+      motivation: "Man spürt dein Interesse am Beruf.",
+      language: "Freundlich und höflich formuliert.",
+      self_reflection: "Überleg dir vorher, woran du noch arbeiten möchtest.",
+    },
+    strengths: ["Sympathischer Einstieg", "Echtes Interesse am Beruf"],
+    tip: "Bereite eine Antwort auf 'Warum unsere Firma?' vor.",
+    exampleAnswer: "Mich spricht an, dass Sie Lernende früh in echte Projekte einbinden ...",
+  },
+  fr: {
+    labels: {
+      relevance: "Pertinence",
+      structure: "Structure",
+      examples: "Exemples concrets",
+      motivation: "Motivation",
+      language: "Langue & expression",
+      self_reflection: "Autoréflexion",
+    },
+    comments: {
+      relevance: "Tu as le plus souvent répondu directement à la question.",
+      structure: "Donne à tes réponses un début et une fin clairs.",
+      examples: "Ton exemple tiré de tes loisirs était parlant.",
+      motivation: "On sent ton intérêt pour le métier.",
+      language: "Formulé de façon aimable et polie.",
+      self_reflection: "Réfléchis à l'avance à ce que tu aimerais encore améliorer.",
+    },
+    strengths: ["Début sympathique", "Vrai intérêt pour le métier"],
+    tip: "Prépare une réponse à « Pourquoi notre entreprise ? ».",
+    exampleAnswer: "Ce qui me plaît, c'est que vous intégrez très tôt les apprentis à de vrais projets ...",
+  },
+  it: {
+    labels: {
+      relevance: "Pertinenza",
+      structure: "Struttura",
+      examples: "Esempi concreti",
+      motivation: "Motivazione",
+      language: "Lingua ed espressione",
+      self_reflection: "Autoriflessione",
+    },
+    comments: {
+      relevance: "Per lo più hai risposto direttamente alla domanda.",
+      structure: "Dai alle tue risposte un inizio e una fine chiari.",
+      examples: "Il tuo esempio del tempo libero era molto chiaro.",
+      motivation: "Si sente il tuo interesse per la professione.",
+      language: "Formulato in modo gentile e cortese.",
+      self_reflection: "Pensa prima a cosa vorresti ancora migliorare.",
+    },
+    strengths: ["Inizio simpatico", "Vero interesse per la professione"],
+    tip: "Prepara una risposta a «Perché la nostra azienda?».",
+    exampleAnswer: "Mi piace che coinvolgiate gli apprendisti presto in progetti reali ...",
+  },
+  gsw: {
+    labels: {
+      relevance: "Relevanz",
+      structure: "Struktur",
+      examples: "Konkreti Bispiil",
+      motivation: "Motivation",
+      language: "Sprach & Uusdruck",
+      self_reflection: "Selbstreflexion",
+    },
+    comments: {
+      relevance: "Du bisch meischtens grad uf d Frog iigange.",
+      structure: "Gib dine Antworte en klare Aafang und Schluss.",
+      examples: "Dis Bispiil us de Freizit isch aaschaulich gsi.",
+      motivation: "Mer spürt dis Interässe am Bruef.",
+      language: "Fründlich und höflich formuliert.",
+      self_reflection: "Überleg dir vorhär, a was d no wötsch schaffe.",
+    },
+    strengths: ["Sympathische Iistieg", "Ächts Interässe am Bruef"],
+    tip: "Bereite e Antwort uf 'Wieso üsi Firma?' vor.",
+    exampleAnswer: "Mi spricht a, dass Dir Lehrlig früeh i ächti Projäkt iibindet ...",
+  },
 };
 
 type MockSession = {
@@ -267,25 +374,22 @@ export const mockApi: InterviewApi = {
     if (!session.done) {
       throw new ApiError("INTERVIEW_NOT_FINISHED", "The interview is not finished yet.");
     }
+    const language = session.request.language;
+    const r = reportTexts[language];
+    const criteria = reportScores.map(({ id, score }) => ({
+      id,
+      label: r.labels[id],
+      score,
+      comment: r.comments[id],
+    }));
+    const average = criteria.reduce((sum, c) => sum + c.score, 0) / criteria.length;
     return {
       session_id: sessionId,
-      language: session.request.language,
-      overall_score: 3.8,
-      criteria: [
-        { id: "relevance", label: "Relevanz", score: 4, comment: "Du bist meistens direkt auf die Frage eingegangen." },
-        { id: "structure", label: "Struktur", score: 3, comment: "Gib deinen Antworten einen klaren Anfang und Schluss." },
-        { id: "examples", label: "Konkrete Beispiele", score: 4, comment: "Dein Beispiel aus der Freizeit war anschaulich." },
-        { id: "motivation", label: "Motivation", score: 4, comment: "Man spürt dein Interesse am Beruf." },
-        { id: "language", label: "Sprache & Ausdruck", score: 4, comment: "Freundlich und höflich formuliert." },
-        { id: "self_reflection", label: "Selbstreflexion", score: 4, comment: "Du kennst deine Stärken gut." },
-      ],
-      strengths: ["Sympathischer Einstieg", "Echtes Interesse am Beruf"],
-      improvements: [
-        {
-          tip: "Bereite eine Antwort auf 'Warum unsere Firma?' vor.",
-          example_answer: "Mich spricht an, dass Sie Lernende früh in echte Projekte einbinden ...",
-        },
-      ],
+      language,
+      overall_score: Math.round(average * 10) / 10,
+      criteria,
+      strengths: r.strengths,
+      improvements: [{ tip: r.tip, example_answer: r.exampleAnswer }],
       next_practice: ["structure", "motivation"],
     };
   },

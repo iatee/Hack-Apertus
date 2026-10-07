@@ -9,3 +9,14 @@ services:
       LLM_NAME: ${LLM_NAME:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # The browser calls the backend, so this is a host URL, not a service name.
+        # VITE_USE_MOCK=true until the backend implements docs/api.md.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
+        VITE_USE_MOCK: ${VITE_USE_MOCK:-true}
+    ports:
+      - "8080:80"

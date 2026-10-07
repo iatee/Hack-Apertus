@@ -12,6 +12,8 @@ type Props = {
   /** Line under the title, e.g. "Schreiner/in EFZ · Deutsch · Training" */
   summary: string;
   onRestart: () => void;
+  /** Called when the interview is over and the candidate wants to see the feedback report. */
+  onFinished: () => void;
 };
 
 /** One bubble in the chat. `tip` is the short feedback after an answer (training mode). */
@@ -21,7 +23,7 @@ type ChatMessage = {
   tip?: string;
 };
 
-export default function InterviewScreen({ session, language, summary, onRestart }: Props) {
+export default function InterviewScreen({ session, language, summary, onRestart, onFinished }: Props) {
   const text = t(language);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -193,7 +195,10 @@ export default function InterviewScreen({ session, language, summary, onRestart 
         {done && (
           <div className="rounded-2xl bg-white p-6 text-center shadow-card">
             <p className="mb-4 text-xl font-bold">{text.finished}</p>
-            <PrimaryButton onClick={onRestart}>{text.newInterview}</PrimaryButton>
+            <PrimaryButton onClick={onFinished}>{text.showFeedback}</PrimaryButton>
+            <button onClick={onRestart} className="mt-4 block w-full text-sm font-bold text-brand">
+              {text.newInterview}
+            </button>
           </div>
         )}
 

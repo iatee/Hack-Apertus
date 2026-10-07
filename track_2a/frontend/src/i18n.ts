@@ -1,6 +1,6 @@
 // UI texts in DE / FR / IT. Swiss German (gsw) uses the German UI texts.
 
-import type { LanguageCode, LocalizedLabel, Mode, Phase } from "./api";
+import type { CriterionId, LanguageCode, LocalizedLabel, Mode, Phase } from "./api";
 
 type UiLanguage = "de" | "fr" | "it";
 
@@ -71,6 +71,25 @@ const texts = {
     inputHint: "Tipp: Nimm dir Zeit. Es gibt keine falschen Antworten.",
     finished: "Das Interview ist fertig. Gut gemacht!",
     newInterview: "Neues Interview",
+    // Feedback screen
+    showFeedback: "Feedback ansehen",
+    feedbackScreenTitle: "Dein Feedback",
+    loadingReport: "Dein Feedback wird erstellt …",
+    overall: "Gesamtwert",
+    outOf: "von 5",
+    scoresTitle: "Deine Werte",
+    strengthsTitle: "Das kannst du schon gut",
+    improvementsTitle: "So wirst du noch besser",
+    exampleAnswer: "Beispielantwort",
+    nextPracticeTitle: "Das übst du als Nächstes",
+    criteria: {
+      relevance: "Relevanz",
+      structure: "Struktur",
+      examples: "Konkrete Beispiele",
+      motivation: "Motivation",
+      language: "Sprache & Ausdruck",
+      self_reflection: "Selbstreflexion",
+    } satisfies Record<CriterionId, string>,
   },
   fr: {
     title: "Coach d'entretien",
@@ -128,6 +147,24 @@ const texts = {
     inputHint: "Conseil : prends ton temps. Il n'y a pas de mauvaises réponses.",
     finished: "L'entretien est terminé. Bravo !",
     newInterview: "Nouvel entretien",
+    showFeedback: "Voir le retour",
+    feedbackScreenTitle: "Ton retour",
+    loadingReport: "Ton retour est en préparation …",
+    overall: "Note globale",
+    outOf: "sur 5",
+    scoresTitle: "Tes résultats",
+    strengthsTitle: "Ce que tu fais déjà bien",
+    improvementsTitle: "Pour t'améliorer encore",
+    exampleAnswer: "Exemple de réponse",
+    nextPracticeTitle: "À travailler ensuite",
+    criteria: {
+      relevance: "Pertinence",
+      structure: "Structure",
+      examples: "Exemples concrets",
+      motivation: "Motivation",
+      language: "Langue & expression",
+      self_reflection: "Autoréflexion",
+    },
   },
   it: {
     title: "Coach per colloqui",
@@ -185,6 +222,24 @@ const texts = {
     inputHint: "Consiglio: prenditi il tuo tempo. Non ci sono risposte sbagliate.",
     finished: "Il colloquio è finito. Ben fatto!",
     newInterview: "Nuovo colloquio",
+    showFeedback: "Vedi il feedback",
+    feedbackScreenTitle: "Il tuo feedback",
+    loadingReport: "Il tuo feedback è in preparazione …",
+    overall: "Valutazione globale",
+    outOf: "su 5",
+    scoresTitle: "I tuoi punteggi",
+    strengthsTitle: "Cosa fai già bene",
+    improvementsTitle: "Per migliorare ancora",
+    exampleAnswer: "Esempio di risposta",
+    nextPracticeTitle: "Da esercitare ora",
+    criteria: {
+      relevance: "Pertinenza",
+      structure: "Struttura",
+      examples: "Esempi concreti",
+      motivation: "Motivazione",
+      language: "Lingua ed espressione",
+      self_reflection: "Autoriflessione",
+    },
   },
 } satisfies Record<UiLanguage, unknown>;
 

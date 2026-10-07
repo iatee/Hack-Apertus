@@ -1,9 +1,10 @@
 import { useState } from "react";
 import type { CreateSessionRequest, CreateSessionResponse, LanguageCode } from "./api";
+import FeedbackScreen from "./screens/FeedbackScreen";
 import InterviewScreen from "./screens/InterviewScreen";
 import SetupScreen from "./screens/SetupScreen";
 
-type Screen = "setup" | "interview";
+type Screen = "setup" | "interview" | "feedback";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("setup");
@@ -30,7 +31,17 @@ export default function App() {
       )}
 
       {screen === "interview" && session && (
-        <InterviewScreen session={session} language={language} summary={summary} onRestart={handleRestart} />
+        <InterviewScreen
+          session={session}
+          language={language}
+          summary={summary}
+          onRestart={handleRestart}
+          onFinished={() => setScreen("feedback")}
+        />
+      )}
+
+      {screen === "feedback" && session && (
+        <FeedbackScreen sessionId={session.session_id} language={language} onRestart={handleRestart} />
       )}
     </div>
   );
