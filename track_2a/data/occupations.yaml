@@ -1,0 +1,46 @@
+# Occupations offered on the setup screen (GET /api/v1/config).
+# `label` is shown to the user; `description` is only used in prompts.
+- id: schreiner_efz
+  label:
+    de: Schreiner/in EFZ
+    fr: Menuisier/ère CFC
+    it: Falegname/a AFC
+  description: >-
+    4-year apprenticeship in carpentry/joinery: building furniture, windows and interiors from
+    wood, reading plans, working precisely with machines and hand tools, safety at work.
+
+- id: informatiker_efz
+  label:
+    de: Informatiker/in EFZ
+    fr: Informaticien/ne CFC
+    it: Informatico/a AFC
+  description: >-
+    4-year apprenticeship in IT: application development or platform development
+    (programming, setting up computers and networks, supporting users).
+
+- id: kv_efz
+  label:
+    de: Kaufmann/-frau EFZ
+    fr: Employé/e de commerce CFC
+    it: Impiegato/a di commercio AFC
+  description: >-
+    3-year commercial apprenticeship: office administration, customer contact,
+    correspondence, accounting basics, working with colleagues across departments.
+
+- id: fage_efz
+  label:
+    de: Fachmann/-frau Gesundheit EFZ
+    fr: Assistant/e en soins et santé communautaire CFC
+    it: Operatore/trice sociosanitario/a AFC
+  description: >-
+    3-year apprenticeship in healthcare: caring for patients and residents in hospitals
+    or care homes, basic medical tasks, empathy and teamwork under time pressure.
+
+- id: detailhandel_efz
+  label:
+    de: Detailhandelsfachmann/-frau EFZ
+    fr: Gestionnaire du commerce de détail CFC
+    it: Impiegato/a del commercio al dettaglio AFC
+  description: >-
+    3-year apprenticeship in retail: advising and serving customers, handling goods
+    and stock, presenting products, working at the checkout.

@@ -13,7 +13,8 @@ If something changes, change it here first, then in the code.
 
 | Topic | Rule |
 |---|---|
-| Base URL | `http://localhost:8080/api/v1` |
+| Base URL | `http://localhost:8000/api/v1` |
+| CORS | Allow origins `http://localhost:5173` (Vite dev server) and `http://localhost:8080` (nginx container) |
 | Format | JSON only, UTF-8, `Content-Type: application/json` |
 | Naming | `snake_case` for all keys |
 | IDs | Strings (UUID), never numbers |
@@ -41,6 +42,7 @@ If something changes, change it here first, then in the code.
 | 409 | `INTERVIEW_NOT_FINISHED` | Report requested too early |
 | 409 | `INTERVIEW_FINISHED` | Answer sent after the end |
 | 502 | `LLM_UNAVAILABLE` | Apertus did not answer or returned garbage |
+| 500 | `INTERNAL_ERROR` | Unexpected backend bug (should not happen) |
 
 ---
 
@@ -50,12 +52,17 @@ If something changes, change it here first, then in the code.
 |---|---|---|---|
 | GET | `/health` | Is the backend alive? | 0 |
 | GET | `/config` | Occupations, languages, profiles for the setup screen | 0 |
-| POST | `/sessions` | Start an interview, get the first question | 0-1 |
-| POST | `/sessions/{session_id}/answers` | Send an answer, get the next question | 2 |
+| POST | `/sessions` | Start an interview, get the first question | 1 |
+| POST | `/sessions/{session_id}/answers` | Send an answer, get the next question | 2 (max 4) |
 | GET | `/sessions/{session_id}` | Current state (for page reload) | 0 |
-| GET | `/sessions/{session_id}/report` | Final feedback report | 1 (once, then cached) |
+| GET | `/sessions/{session_id}/report` | Final feedback report | 1 (max 3, once, then cached) |
 
 Budget check: about 2 calls per answer + 1 for the report -> well below the limit of 5.
+If the model returns unusable JSON, the call is retried (max 3 attempts), and every retry counts as a call:
+an answer costs at most 4 (3 analysis + 1 interviewer). In the `candidate_questions` phase an answer costs 1,
+or 0 if the candidate has no more questions. `meta.llm_calls` always shows the real number.
+
+`POST /chat` also exists, for checking the Apertus connection only (dev, not used by the frontend).
 
 ---
 
@@ -161,7 +168,11 @@ Response `200` (interview continues):
 ```
 
 - `turn_feedback` is only present in `mode: "training"`. In `rehearsal` it is `null`.
+  It is also `null` in the `candidate_questions` phase (not scored) and if the analysis failed.
 - `is_follow_up: true` means the interviewer digs deeper into the last answer instead of moving on.
+- `progress.current` counts main questions (8 in total). Follow-ups and the turns in the
+  `candidate_questions` phase don't advance it, so it can stay the same for several turns.
+- Question ids (`q1`, `q2`, ...) count every interviewer question, including follow-ups.
 
 Response `200` (interview finished):
 
@@ -176,6 +187,9 @@ Response `200` (interview finished):
   "meta": { "llm_calls": 1, "latency_ms": 2300 }
 }
 ```
+
+`closing_message` is either a fixed goodbye (candidate has no more questions, 0 calls) or the
+interviewer's answer to the candidate's last question followed by a goodbye (1 call).
 
 ### GET `/sessions/{session_id}`
 
@@ -198,6 +212,9 @@ Lets the frontend restore the chat after a page reload.
   "current_question_id": "q2"
 }
 ```
+
+After the interview, `history` ends with the closing message (`question_id: null`) and
+`current_question_id` is `null`.
 
 ### GET `/sessions/{session_id}/report`
 
@@ -228,6 +245,14 @@ Generated with one LLM call the first time, then cached.
   "next_practice": ["motivation", "self_reflection"]
 }
 ```
+
+- Numbers are computed in code from the per-answer analyses, not by the LLM: `criteria[].score` is
+  the rounded average per criterion, `overall_score` the average of all criteria (1 decimal),
+  `next_practice` the two weakest criteria.
+- The LLM writes `comment`, `evidence`, `strengths` and `improvements`. `evidence` is only kept if it
+  is a real quote from the candidate's answers, otherwise it is `""`.
+- If the report can't be generated, the response is `502 LLM_UNAVAILABLE` and nothing is cached,
+  so the frontend can simply retry.
 
 ---
 
@@ -260,3 +285,5 @@ Generated with one LLM call the first time, then cached.
 | Date | Change | By |
 |---|---|---|
 | 2026-10-06 | First draft | Iago |
+| 2026-10-06 | Port 8000 (matches backend skeleton), CORS for frontend dev server | Anina |
+| 2026-10-09 | Backend implements v1. Clarified: LLM calls incl. JSON retries, `progress` and question ids, `turn_feedback` in `candidate_questions`, `closing_message`, history after the end, how report numbers and `evidence` are made, report errors, dev-only `POST /chat`, CORS origin for the nginx container, `500 INTERNAL_ERROR`. No breaking changes. | Iago |
