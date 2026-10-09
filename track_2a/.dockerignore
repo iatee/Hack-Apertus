@@ -2,5 +2,5 @@
 .env.*
 .git
 **/__pycache__
-data/
 docs/
+frontend/

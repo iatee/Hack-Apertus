@@ -1,0 +1,273 @@
+"""Interview loop and API tests against a fake LLM (no network)."""
+
+import json
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend import llm, main
+from backend.interview.graph import InterviewEngine
+from backend.interview.parsing import MAX_JSON_ATTEMPTS
+from backend.interview.prompts import CRITERIA
+
+SETUP = {"language": "de", "occupation_id": "informatiker_efz", "interviewer_style": "friendly",
+         "mode": "training", "candidate": {"first_name": "Lara", "school_level": "Sek A"}}
+
+
+def analysis_json(follow_up=False):
+    return json.dumps({"scores": {key: 3 for key in CRITERIA}, "short_tip": "Nenne ein Beispiel.", "follow_up": follow_up})
+
+
+def report_json(evidence="PCs zusammen"):
+    return json.dumps({
+        "criteria": {key: {"comment": f"Kommentar {key}.", "evidence": evidence} for key in CRITERIA},
+        "strengths": ["Sympathischer Einstieg"],
+        "improvements": [{"tip": "Firma recherchieren.", "example_answer": "Mich spricht an, dass ..."}],
+    })
+
+
+class FakeLLM:
+    """Stands in for the OpenAI client; answers by prompt type from scripted queues."""
+
+    def __init__(self, analysis_outputs=(), report_outputs=()):
+        self.analysis_outputs = list(analysis_outputs)
+        self.report_outputs = list(report_outputs)
+        self.calls = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+    async def create(self, model, messages, **kwargs):
+        system = messages[0]["content"]
+        if "You evaluate" in system:
+            self.calls.append("analysis")
+            content = self.analysis_outputs.pop(0) if self.analysis_outputs else analysis_json()
+        elif "career coach" in system:
+            self.calls.append("report")
+            content = self.report_outputs.pop(0) if self.report_outputs else report_json()
+        else:
+            self.calls.append("interviewer")
+            content = f"Frage {len(self.calls)}?"
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))], usage=None)
+
+
+@pytest.fixture
+def fake(monkeypatch):
+    def install(**kwargs):
+        client = FakeLLM(**kwargs)
+        monkeypatch.setattr(llm, "_get_client", lambda: (client, "fake-model"))
+        return client
+    return install
+
+
+@pytest.fixture
+def api(monkeypatch):
+    monkeypatch.setattr(main, "engine", InterviewEngine())
+    return TestClient(main.app)
+
+
+def start(api, **overrides):
+    resp = api.post("/api/v1/sessions", json={**SETUP, **overrides})
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+def send(api, session_id, question_id, text):
+    return api.post(f"/api/v1/sessions/{session_id}/answers", json={"question_id": question_id, "text": text})
+
+
+def run_until(api, session, phase, text="Ich baue gerne PCs zusammen."):
+    sid, turn = session["session_id"], session
+    while turn["phase"] != phase:
+        turn = send(api, sid, turn["question"]["id"], text).json()
+    return turn
+
+
+# --- Turns and call budget -------------------------------------------------------------------------
+
+def test_normal_turn_uses_two_calls(fake, api):
+    client = fake()
+    session = start(api)
+    assert session["question"]["id"] == "q1" and session["progress"] == {"current": 1, "total": 8}
+
+    resp = send(api, session["session_id"], "q1", "Ich bin Lara und baue gerne PCs zusammen.")
+    body = resp.json()
+    assert resp.status_code == 200 and body["meta"]["llm_calls"] == 2
+    assert client.calls[-2:] == ["analysis", "interviewer"]
+    assert body["phase"] == "motivation" and body["progress"]["current"] == 2
+    assert body["question"] == {"id": "q2", "text": body["question"]["text"], "is_follow_up": False}
+    assert body["turn_feedback"] == {"short_tip": "Nenne ein Beispiel.", "scores": {key: 3 for key in CRITERIA}}
+
+
+def test_broken_json_is_retried_and_counted(fake, api):
+    client = fake(analysis_outputs=["Das war gut.", analysis_json()])
+    session = start(api)
+    body = send(api, session["session_id"], "q1", "Antwort").json()
+    assert body["meta"]["llm_calls"] == 3
+    assert client.calls[-3:] == ["analysis", "analysis", "interviewer"]
+    assert body["turn_feedback"] is not None
+
+
+def test_gives_up_after_max_attempts_and_stays_under_budget(fake, api):
+    fake(analysis_outputs=["kaputt"] * MAX_JSON_ATTEMPTS)
+    session = start(api)
+    body = send(api, session["session_id"], "q1", "Antwort").json()
+    assert body["meta"]["llm_calls"] == MAX_JSON_ATTEMPTS + 1 < 5
+    assert body["turn_feedback"] is None and body["question"]  # interview continues
+
+
+def test_follow_up_keeps_progress(fake, api):
+    fake(analysis_outputs=[analysis_json(), analysis_json(follow_up=True)])
+    session = start(api)
+    sid = session["session_id"]
+    send(api, sid, "q1", "Intro")
+    body = send(api, sid, "q2", "Hmm.").json()
+    assert body["question"]["id"] == "q3" and body["question"]["is_follow_up"] is True
+    assert body["progress"]["current"] == 2
+
+
+def test_rehearsal_mode_has_no_turn_feedback(fake, api):
+    fake()
+    session = start(api, mode="rehearsal")
+    body = send(api, session["session_id"], "q1", "Antwort").json()
+    assert body["turn_feedback"] is None
+
+
+# --- Candidate questions and closing ----------------------------------------------------------------
+
+def test_candidate_questions_end_without_call_when_no_more_questions(fake, api):
+    client = fake()
+    session = start(api)
+    turn = run_until(api, session, "candidate_questions")
+    assert turn["progress"]["current"] == 8
+
+    turn = send(api, session["session_id"], turn["question"]["id"], "Wie gross ist das Team?").json()
+    assert turn["meta"]["llm_calls"] == 1 and turn["turn_feedback"] is None and not turn["done"]
+    calls_before = len(client.calls)
+    turn = send(api, session["session_id"], turn["question"]["id"], "Nein, danke.").json()
+    assert turn["meta"]["llm_calls"] == 0 and len(client.calls) == calls_before
+    assert turn["done"] and turn["phase"] == "closing" and turn["question"] is None
+    assert turn["closing_message"].startswith("Vielen Dank, Lara!")
+
+
+def test_last_candidate_question_is_answered_with_closing(fake, api):
+    fake()
+    session = start(api, interviewer_style="strict")
+    turn = run_until(api, session, "candidate_questions")
+    turn = send(api, session["session_id"], turn["question"]["id"], "Wie gross ist das Team?").json()
+    turn = send(api, session["session_id"], turn["question"]["id"], "Gibt es Berufsschule am Montag?").json()
+    assert turn["done"] and turn["meta"]["llm_calls"] == 1
+    assert turn["closing_message"].startswith("Frage")  # the interviewer's LLM answer, not the fixed line
+
+
+# --- Report ------------------------------------------------------------------------------------------
+
+def finish(api, session):
+    turn = run_until(api, session, "candidate_questions")
+    return send(api, session["session_id"], turn["question"]["id"], "Nein, danke.").json()
+
+
+def test_report_is_generated_once_then_cached(fake, api):
+    client = fake(report_outputs=[report_json(evidence="baue gerne PCs"), report_json()])
+    session = start(api)
+    sid = session["session_id"]
+    assert api.get(f"/api/v1/sessions/{sid}/report").json()["error"]["code"] == "INTERVIEW_NOT_FINISHED"
+    finish(api, session)
+
+    report = api.get(f"/api/v1/sessions/{sid}/report").json()
+    assert client.calls.count("report") == 1
+    assert report["overall_score"] == 3.0 and len(report["criteria"]) == 6
+    assert report["criteria"][2] == {"id": "examples", "label": "Konkrete Beispiele", "score": 3,
+                                     "comment": "Kommentar examples.", "evidence": "baue gerne PCs"}
+    assert report["strengths"] and report["improvements"][0]["example_answer"]
+    assert report["next_practice"] == ["relevance", "structure"]  # ties keep criteria order
+
+    assert api.get(f"/api/v1/sessions/{sid}/report").json() == report
+    assert client.calls.count("report") == 1
+
+
+def test_report_drops_evidence_that_was_not_said(fake, api):
+    fake(report_outputs=[report_json(evidence="Ich habe drei Jahre bei Google gearbeitet")])
+    session = start(api)
+    finish(api, session)
+    report = api.get(f"/api/v1/sessions/{session['session_id']}/report").json()
+    assert all(c["evidence"] == "" for c in report["criteria"])
+
+
+def test_report_failure_returns_502_and_is_not_cached(fake, api):
+    fake(report_outputs=["kaputt"] * MAX_JSON_ATTEMPTS)
+    session = start(api)
+    finish(api, session)
+    resp = api.get(f"/api/v1/sessions/{session['session_id']}/report")
+    assert resp.status_code == 502 and resp.json()["error"]["code"] == "LLM_UNAVAILABLE"
+    assert api.get(f"/api/v1/sessions/{session['session_id']}/report").status_code == 200
+
+
+# --- Contract: config, state, errors ----------------------------------------------------------------
+
+def test_health_and_config(api, monkeypatch):
+    monkeypatch.setenv("LLM_NAME", "swiss-ai/Apertus-v1.5-8B")
+    assert api.get("/api/v1/health").json() == {"status": "ok", "model": "swiss-ai/Apertus-v1.5-8B"}
+    cfg = api.get("/api/v1/config").json()
+    assert [l["code"] for l in cfg["languages"]] == ["de", "fr", "it", "gsw"]
+    assert {"id": "informatiker_efz", "label": {"de": "Informatiker/in EFZ", "fr": "Informaticien/ne CFC",
+                                                "it": "Informatico/a AFC"}} in cfg["occupations"]
+    assert [s["id"] for s in cfg["interviewer_styles"]] == ["friendly", "strict"]
+    assert [m["id"] for m in cfg["modes"]] == ["training", "rehearsal"]
+
+
+def test_session_state_for_reload(fake, api):
+    fake()
+    session = start(api)
+    sid = session["session_id"]
+    send(api, sid, "q1", "Ich bin Lara.")
+    state = api.get(f"/api/v1/sessions/{sid}").json()
+    assert state["current_question_id"] == "q2" and state["phase"] == "motivation" and not state["done"]
+    assert [(h["role"], h["question_id"]) for h in state["history"]] == [
+        ("interviewer", "q1"), ("candidate", "q1"), ("interviewer", "q2")]
+
+
+@pytest.mark.parametrize("payload, code", [
+    ({**SETUP, "occupation_id": "astronaut"}, "INVALID_REQUEST"),
+    ({**SETUP, "language": "en"}, "INVALID_REQUEST"),
+    ({k: v for k, v in SETUP.items() if k != "occupation_id"}, "INVALID_REQUEST"),
+])
+def test_invalid_session_requests(api, payload, code):
+    resp = api.post("/api/v1/sessions", json=payload)
+    assert resp.status_code == 400 and resp.json()["error"]["code"] == code
+
+
+def test_answer_errors(fake, api):
+    fake()
+    session = start(api)
+    sid = session["session_id"]
+    assert send(api, "nope", "q1", "x").json()["error"]["code"] == "SESSION_NOT_FOUND"
+    resp = send(api, sid, "q7", "x")
+    assert resp.status_code == 409 and resp.json()["error"]["code"] == "WRONG_QUESTION"
+    assert send(api, sid, "q1", "").status_code == 400
+    finish(api, session)
+    assert send(api, sid, "q1", "x").json()["error"]["code"] == "INTERVIEW_FINISHED"
+
+
+def test_missing_llm_config_is_502(api, monkeypatch):
+    for name in ("LLM_NAME", "LLM_BASE_URL", "LLM_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    resp = api.post("/api/v1/sessions", json=SETUP)
+    assert resp.status_code == 502 and resp.json()["error"]["code"] == "LLM_UNAVAILABLE"
+
+
+@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://localhost:8080"])
+def test_cors_allows_frontend_origins(api, origin):
+    resp = api.options("/api/v1/sessions", headers={"Origin": origin, "Access-Control-Request-Method": "POST",
+                                                    "Access-Control-Request-Headers": "content-type"})
+    assert resp.status_code == 200 and resp.headers["access-control-allow-origin"] == origin
+
+
+def test_cors_rejects_other_origins(api):
+    resp = api.get("/api/v1/health", headers={"Origin": "http://evil.example"})
+    assert "access-control-allow-origin" not in resp.headers
+
+
+def test_unknown_routes_use_error_format(api):
+    resp = api.get("/api/v1/nope")
+    assert resp.status_code == 404 and resp.json()["error"]["code"] == "INVALID_REQUEST"
+    assert api.post("/api/v1/health").json()["error"]["code"] == "INVALID_REQUEST"  # wrong method
