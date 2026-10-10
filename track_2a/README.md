@@ -54,10 +54,15 @@ curl localhost:8000/api/v1/sessions/<session_id>/report     # after the last ans
 ## How it works
 
 ```
-Browser (React) ──> FastAPI backend ──> LangGraph turn ──> Apertus v1.5 8B (CSCS)
-                                         │
-                       analysis call (11 criteria, JSON) ─> interviewer call (next question)
+Browser (React) ──REST /api/v1──────────┐          Aegra server (port 8000, Postgres)
+                                        ├──> same LangGraph nodes ──> Apertus v1.5 8B (CSCS)
+Judge / Agent Chat UI ──Agent Protocol──┘    analysis call (11 criteria, JSON) -> interviewer call
+                        graph `agent`
 ```
+
+- **Two interfaces, one server.** As in the FHGR project template, [Aegra](https://github.com/aegra/aegra) serves
+  the LangGraph graph `agent` (`src/backend/agent.py`, chat in / chat out, one thread = one interview) and our
+  FastAPI app with the REST API for the frontend (`aegra.json` "http.app"). Both use the same nodes.
 
 - **Two LLM calls per answer.** An *analysis call* scores the answer on the FHGR rubric
   (11 criteria from `datasets/rubric/criteria.json`, 1-4, `null` when the answer shows nothing about
@@ -98,10 +103,30 @@ docker compose logs backend | grep '"event": "answer"'
 The frontend and backend share the contract in [docs/api.md](docs/api.md): endpoints, JSON shapes, error codes.
 All errors use `{"error": {"code": "...", "message": "..."}}`.
 
+## Agent Protocol (graph `agent`)
+
+Any Agent Protocol / LangGraph SDK client can run an interview as a chat (e.g. the FHGR judge or the
+[Agent Chat UI](https://github.com/langchain-ai/agent-chat-ui) with deployment URL `http://localhost:8000`,
+graph id `agent`). The first message starts the interview; every further message is one answer; at the end the
+coach sends the goodbye and the final feedback. Optional setup in the run's `config.configurable`: `language`,
+`occupation_id`, `posting_id`, `interviewer_style`, `mode` (default `rehearsal`), `candidate`, `focus`. Without
+it, the language is guessed from the first message and the occupation is matched against the FHGR postings.
+
+```bash
+T=$(curl -s -X POST localhost:8000/threads -H 'Content-Type: application/json' -d '{}' | jq -r .thread_id)
+curl -s -X POST localhost:8000/threads/$T/runs/wait -H 'Content-Type: application/json' \
+  -d '{"assistant_id": "agent", "input": {"messages": [{"role": "user", "content": "Hallo, ich bewerbe mich als Informatikerin."}]}}' \
+  | jq -r '.messages[-1].content'
+```
+
+`SERVER=uvicorn docker compose up` runs only the REST API (no Postgres), as a fallback.
+
 ## Project structure
 
 | Path | What it is |
 |---|---|
+| `aegra.json` | Aegra config: graph `agent` + our FastAPI app |
+| `src/backend/agent.py` | Graph `agent` for the Agent Protocol (chat in, chat out) |
 | `src/backend/main.py` | FastAPI app: endpoints, error format, CORS |
 | `src/backend/llm.py` | Apertus client (OpenAI-compatible) and LLM call counter |
 | `src/backend/config.py` | Setup options (languages, occupations, styles, modes) |
@@ -110,8 +135,12 @@ All errors use `{"error": {"code": "...", "message": "..."}}`.
 | `src/backend/interview/prompts.py` | Criteria, phase goals and all prompts |
 | `src/backend/interview/parsing.py` | Robust JSON parsing and retries |
 | `src/backend/interview/report.py` | Final report |
+| `src/backend/interview/rubric.py` | FHGR rubric (11 criteria, 1-4) from `datasets/rubric/` |
+| `src/backend/interview/safety.py` | Guardrails: crisis, distress, redirect |
 | `src/backend/tests/` | Tests (fake LLM, no network) |
 | `src/eval/run_interview.py` | Interview runner: plays a full interview against the API |
+| `src/eval/bench_*.py` | Benchmarks on the FHGR data (see below) |
+| `datasets/`, `fhgr/` | FHGR challenge data, slides and project template (copied unchanged) |
 | `frontend/` | React web app (see `frontend/README.md`) |
 | `data/` | Occupations and interviewer styles (YAML) |
 | `docs/` | API contract, diagrams |
@@ -182,8 +211,9 @@ the FHGR feedback rules. Without `JUDGE_NAME` the judge is skipped. The coach it
 
 ## Data
 
-`data/` holds only small YAML configuration files (limit: 100 MB). No personal data is stored. The optional
-candidate details (first name, school level, interests) only live in memory for the running session.
+`data/` holds only small YAML configuration files (limit: 100 MB). `datasets/` and `fhgr/` are the FHGR
+challenge material (synthetic, fictional persons and companies). No real personal data is stored; the optional
+candidate details (first name, school level, interests) are kept with the session (SQLite / Postgres).
 
 ## Hack Apertus
 

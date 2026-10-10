@@ -331,7 +331,8 @@ Generated with one LLM call the first time, then cached.
 
 ## 5. Out of scope for v1
 
-- Judge benchmark format: handled by a separate adapter (CLI) that calls the same core logic. Defined after the Q&A on 8.10.
+- Judge benchmark format: not published yet. The same server also offers the Agent Protocol (Aegra, graph
+  `agent`, as in the FHGR project template), see README "Agent Protocol". It is not part of this contract.
 - Streaming answers (SSE) - possible v2 if latency feels too slow.
 - Voice input/output - possible v2 (TTS feature).
 - Accounts. (Sessions are persisted in SQLite when `SESSIONS_DB` is set, see README.)
@@ -348,3 +349,4 @@ Generated with one LLM call the first time, then cached.
 | 2026-10-10 | 12 main questions (intro 2, motivation 3, strengths/weaknesses 3, situational 3, + question round). Optional `posting_id`; `company` and `interviewer` in the session response; `postings` in `GET /config`. Not breaking. | Iago |
 | 2026-10-10 | Optional `focus` in `POST /sessions`. Not breaking. | Iago |
 | 2026-10-10 | `occupation_id` is optional when `posting_id` is given (the posting's occupation is used). Not breaking. | Iago |
+| 2026-10-10 | Backend runs inside Aegra (same port 8000, same `/api/v1`); errors outside `/api/v1` keep FastAPI's format. Hidden occupation `lehrstelle_allgemein` is not listed in `GET /config`. Not breaking. | Iago |
