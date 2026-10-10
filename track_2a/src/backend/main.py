@@ -5,6 +5,8 @@ import logging
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import APIRouter, FastAPI, Request
@@ -22,9 +24,28 @@ from backend.interview.report import ReportUnavailable, build_report
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("api")
 
-app = FastAPI(title="Schnupper Interview Coach")
+engine = InterviewEngine()  # in memory; replaced by a SQLite-backed engine at startup if SESSIONS_DB is set
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """With SESSIONS_DB=/path/sessions.db, sessions survive a backend restart (LangGraph SQLite checkpointer)."""
+    global engine
+    db = os.environ.get("SESSIONS_DB", "").strip()
+    if not db:
+        yield
+        return
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+    Path(db).parent.mkdir(parents=True, exist_ok=True)
+    async with AsyncSqliteSaver.from_conn_string(db) as saver:
+        engine = InterviewEngine(saver)
+        logger.info(json.dumps({"event": "sessions_db", "path": db}))
+        yield
+
+
+app = FastAPI(title="Schnupper Interview Coach", lifespan=lifespan)
 api = APIRouter(prefix="/api/v1")
-engine = InterviewEngine()
 
 app.add_middleware(
     CORSMiddleware,

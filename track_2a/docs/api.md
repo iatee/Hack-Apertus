@@ -322,7 +322,7 @@ Generated with one LLM call the first time, then cached.
 - Judge benchmark format: handled by a separate adapter (CLI) that calls the same core logic. Defined after the Q&A on 8.10.
 - Streaming answers (SSE) - possible v2 if latency feels too slow.
 - Voice input/output - possible v2 (TTS feature).
-- Accounts and persistence beyond the running container.
+- Accounts. (Sessions are persisted in SQLite when `SESSIONS_DB` is set, see README.)
 
 ## 6. Change log
 

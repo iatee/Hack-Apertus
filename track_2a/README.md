@@ -169,7 +169,7 @@ the FHGR feedback rules. Without `JUDGE_NAME` the judge is skipped. The coach it
 
 ## Limitations
 
-- Sessions are kept in memory and are lost when the backend restarts.
+- Sessions are stored in SQLite (`data/sessions/sessions.db`, set by `SESSIONS_DB` in docker-compose) and survive a restart. Without `SESSIONS_DB` (tests, local dev) they are kept in memory.
 - Swiss German (`gsw`) is a beta: the 8B model may mix in Standard German or spell inconsistently.
 - The interviewer knows nothing about a specific company, so it answers candidate questions in general terms.
 
