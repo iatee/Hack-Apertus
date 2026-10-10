@@ -421,3 +421,8 @@ def test_session_with_posting_only_uses_its_occupation(fake, api):
     resp = api.post("/api/v1/sessions", json=payload)
     assert resp.status_code == 201 and resp.json()["company"]["place"] == "Fribourg"
     assert "Coiffeur/-euse EFZ" in client.last_system
+
+
+def test_routes_outside_api_v1_keep_fastapi_errors(api):
+    # Inside Aegra, the Agent Protocol routes (/threads, ...) must keep FastAPI's {"detail": ...} format.
+    assert api.get("/threads/x").json() == {"detail": "Not Found"}

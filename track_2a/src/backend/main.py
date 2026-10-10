@@ -1,4 +1,8 @@
-"""HTTP API. The contract is docs/api.md: change it there first, then here."""
+"""HTTP API. The contract is docs/api.md: change it there first, then here.
+
+Runs standalone (uvicorn backend.main:app) or as the custom app inside Aegra (aegra.json "http"),
+which then adds the Agent Protocol routes (/threads, /runs, ...) for the graph `agent` (agent.py).
+"""
 
 import json
 import logging
@@ -10,6 +14,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -48,12 +53,14 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Schnupper Interview Coach", lifespan=lifespan)
 api = APIRouter(prefix="/api/v1")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8080"],  # Vite dev server, nginx container
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
-)
+# Inside Aegra (AEGRA_CONFIG is set) Aegra adds CORS itself, from aegra.json "http.cors".
+if not os.environ.get("AEGRA_CONFIG"):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://localhost:8080"],  # Vite dev server, nginx container
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
 
 
 # --- Errors (docs/api.md section 1) ---------------------------------------------------------------
@@ -72,22 +79,33 @@ async def _api_error(_: Request, exc: ApiError):
     return _error(exc.status, exc.code, exc.message)
 
 
+def _ours(request: Request) -> bool:
+    """Our error format only for our API; Aegra's routes keep FastAPI's default format."""
+    return request.url.path.startswith("/api/v1")
+
+
 @app.exception_handler(RequestValidationError)
-async def _validation_error(_: Request, exc: RequestValidationError):
+async def _validation_error(request: Request, exc: RequestValidationError):
+    if not _ours(request):
+        return await request_validation_exception_handler(request, exc)
     first = exc.errors()[0] if exc.errors() else {}
     field = ".".join(str(p) for p in first.get("loc", []) if p != "body")
     return _error(400, "INVALID_REQUEST", f"{field}: {first.get('msg', 'invalid request')}".strip(": "))
 
 
 @app.exception_handler(StarletteHTTPException)
-async def _http_error(_: Request, exc: StarletteHTTPException):
+async def _http_error(request: Request, exc: StarletteHTTPException):
+    if not _ours(request):
+        return await http_exception_handler(request, exc)
     # Unknown routes, wrong methods etc. (FastAPI would answer {"detail": ...}).
     return _error(exc.status_code, "INVALID_REQUEST", str(exc.detail))
 
 
 @app.exception_handler(Exception)
-async def _unexpected_error(_: Request, exc: Exception):
+async def _unexpected_error(request: Request, exc: Exception):
     logger.exception("Unexpected error")
+    if not _ours(request):
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
     return _error(500, "INTERNAL_ERROR", "Unexpected error in the backend.")
 
 

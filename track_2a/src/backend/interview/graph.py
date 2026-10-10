@@ -166,6 +166,12 @@ def build_graph(checkpointer=None):
 _TURN_RESET = {"analysis": None, "analysis_attempts": 0}
 
 
+def initial_state(setup: dict) -> dict:
+    """State for a new interview (REST: POST /sessions, Agent Protocol: first message of a thread)."""
+    return {**setup, "phase_index": 0, "questions_in_phase": 1, "follow_ups_in_phase": 0, "question_count": 0,
+            "done": False, "closing_message": None, "report": None, "answer": None, **_TURN_RESET}
+
+
 class InterviewEngine:
     """Session-level API over the graph; session id = LangGraph thread id."""
 
@@ -180,10 +186,7 @@ class InterviewEngine:
         return snapshot.values or None
 
     async def start(self, session_id: str, setup: dict) -> dict:
-        initial = {**setup, "phase_index": 0, "questions_in_phase": 1, "follow_ups_in_phase": 0,
-                   "question_count": 0, "done": False, "closing_message": None, "report": None,
-                   "answer": None, **_TURN_RESET}
-        return await self.graph.ainvoke(initial, self._config(session_id))
+        return await self.graph.ainvoke(initial_state(setup), self._config(session_id))
 
     async def answer(self, session_id: str, answer: str) -> dict:
         state = await self.graph.ainvoke({"answer": answer, **_TURN_RESET}, self._config(session_id))

@@ -51,3 +51,15 @@
     3-year apprenticeship in retail: advising and serving customers, handling goods
     and stock, presenting products, working at the checkout.
   postings: {de: P-06}
+
+# Not shown on the setup screen (hidden): used by the Agent Protocol graph (agent.py) when neither
+# the run config nor the first message names an occupation.
+- id: lehrstelle_allgemein
+  hidden: true
+  label:
+    de: Lehrstelle
+    fr: Apprentissage
+    it: Apprendistato
+  description: >-
+    The occupation is not known yet. In the first question also ask which apprenticeship the candidate
+    is applying for, and from then on treat the interview as an interview for that occupation.

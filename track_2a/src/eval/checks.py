@@ -2,6 +2,8 @@
 
 import re
 
+from backend.interview import language
+
 # Formal address or third person instead of du/tu (the coach always uses informal address).
 # German "Sie" at the start of a sentence can mean "she/they", so only capitalised forms inside a sentence count.
 _FORMAL = {
@@ -17,12 +19,6 @@ _THIRD_PERSON = {
 for _patterns in (_FORMAL, _THIRD_PERSON):
     _patterns["gsw"] = _patterns["de"]
 
-_STOPWORDS = {
-    "de": {"und", "ich", "du", "die", "der", "das", "nicht", "mit", "ist", "dein", "deine", "hast", "wie", "auch"},
-    "fr": {"et", "je", "tu", "le", "la", "les", "pas", "avec", "est", "ton", "ta", "tes", "as", "une", "des"},
-    "it": {"e", "io", "tu", "il", "la", "non", "con", "è", "che", "tuo", "tua", "hai", "una", "per", "di"},
-}
-
 _MOJIBAKE = re.compile(r"[ÃÂ][\u0080-¿]")
 
 
@@ -35,9 +31,7 @@ def report_texts(report: dict) -> list[str]:
 
 
 def detected_language(text: str) -> str:
-    words = re.findall(r"\w+", text.lower())
-    counts = {lang: sum(w in stop for w in words) for lang, stop in _STOPWORDS.items()}
-    return max(counts, key=counts.get)
+    return language.detect(text)
 
 
 def check_report(report: dict, language: str) -> dict:

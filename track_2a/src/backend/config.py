@@ -63,7 +63,7 @@ def occupation_for(occupation_id: Optional[str], posting_id: Optional[str]) -> d
 def public_config() -> dict:
     return {
         "languages": LANGUAGES,
-        "occupations": [{"id": o["id"], "label": o["label"]} for o in occupations().values()],
+        "occupations": [{"id": o["id"], "label": o["label"]} for o in occupations().values() if not o.get("hidden")],
         "interviewer_styles": [{"id": s["id"], "label": s["label"]} for s in interviewer_styles().values()],
         "modes": MODES,
         "postings": [{"id": p["id"], "lang": p["lang"], "occupation": p["occupation"]["name_de"],
