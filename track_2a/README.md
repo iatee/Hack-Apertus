@@ -106,6 +106,7 @@ All errors use `{"error": {"code": "...", "message": "..."}}`.
 | `src/backend/interview/parsing.py` | Robust JSON parsing and retries |
 | `src/backend/interview/report.py` | Final report |
 | `src/backend/tests/` | Tests (fake LLM, no network) |
+| `src/eval/run_interview.py` | Interview runner: plays a full interview against the API |
 | `frontend/` | React web app (see `frontend/README.md`) |
 | `data/` | Occupations and interviewer styles (YAML) |
 | `docs/` | API contract, diagrams |
@@ -128,6 +129,21 @@ PYTHONPATH=src uvicorn backend.main:app --reload --port 8000
 ```
 
 Frontend dev server (http://localhost:5173): see `frontend/README.md`.
+
+## Test a whole interview (interview runner)
+
+`src/eval/run_interview.py` plays one complete interview against the running backend and checks the
+LLM call gate. The candidate is scripted (fixed answers) or simulated by Apertus (`--candidate llm`).
+
+```bash
+make run    # in a second terminal:
+docker compose exec backend python -m eval.run_interview --language de
+docker compose exec backend python -m eval.run_interview --language fr --candidate llm --level weak
+```
+
+It prints every question, answer, tip and `llm_calls`, then a summary (average and maximum calls per
+answer, follow-ups, JSON retries, latency, report score) and saves the run as JSON in `data/eval/runs/`.
+Exit code 0 = gate OK, 1 = average ≥ 5 calls per answer, 2 = API error. Options: `--help`.
 
 ## Limitations
 
