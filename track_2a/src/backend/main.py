@@ -5,6 +5,8 @@ import logging
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import APIRouter, FastAPI, Request
@@ -17,14 +19,34 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend import config, llm
 from backend.interview.graph import InterviewEngine, position
 from backend.interview.phases import progress
+from backend.interview.prompts import CRITERIA
 from backend.interview.report import ReportUnavailable, build_report
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("api")
 
-app = FastAPI(title="Schnupper Interview Coach")
+engine = InterviewEngine()  # in memory; replaced by a SQLite-backed engine at startup if SESSIONS_DB is set
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """With SESSIONS_DB=/path/sessions.db, sessions survive a backend restart (LangGraph SQLite checkpointer)."""
+    global engine
+    db = os.environ.get("SESSIONS_DB", "").strip()
+    if not db:
+        yield
+        return
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+    Path(db).parent.mkdir(parents=True, exist_ok=True)
+    async with AsyncSqliteSaver.from_conn_string(db) as saver:
+        engine = InterviewEngine(saver)
+        logger.info(json.dumps({"event": "sessions_db", "path": db}))
+        yield
+
+
+app = FastAPI(title="Schnupper Interview Coach", lifespan=lifespan)
 api = APIRouter(prefix="/api/v1")
-engine = InterviewEngine()
 
 app.add_middleware(
     CORSMiddleware,
@@ -96,17 +118,26 @@ class Candidate(BaseModel):
 
 class SessionRequest(BaseModel):
     language: Literal["de", "fr", "it", "gsw"]
-    occupation_id: str
+    occupation_id: Optional[str] = None  # one of data/occupations.yaml; optional if posting_id is given
     interviewer_style: str = "friendly"
     mode: Literal["training", "rehearsal"] = "training"
     candidate: Optional[Candidate] = None
+    posting_id: Optional[str] = None  # FHGR posting (company); default per occupation and language
+    focus: list[str] = Field(default=[], max_length=3)  # criteria to practise (e.g. the report's next_practice)
 
     @model_validator(mode="after")
     def _known_ids(self):
-        if self.occupation_id not in config.occupations():
+        if not self.occupation_id and not self.posting_id:
+            raise ValueError("occupation_id or posting_id is required")
+        if self.occupation_id and self.occupation_id not in config.occupations():
             raise ValueError(f"unknown occupation_id '{self.occupation_id}'")
         if self.interviewer_style not in config.interviewer_styles():
             raise ValueError(f"unknown interviewer_style '{self.interviewer_style}'")
+        if self.posting_id and self.posting_id not in config.postings():
+            raise ValueError(f"unknown posting_id '{self.posting_id}'")
+        unknown = [c for c in self.focus if c not in CRITERIA]
+        if unknown:
+            raise ValueError(f"unknown focus criteria: {', '.join(unknown)}")
         return self
 
 
@@ -138,13 +169,17 @@ async def create_session(req: SessionRequest) -> dict:
     setup = req.model_dump()
     if setup["candidate"]:
         setup["candidate"] = {k: v for k, v in setup["candidate"].items() if v}
+    setup["posting_id"] = req.posting_id or config.default_posting_id(req.occupation_id, req.language)
     state = await _llm(engine.start(session_id, setup))
     question = state["current_question"]
+    posting = config.postings().get(setup["posting_id"] or "")
     return {
         "session_id": session_id,
         "phase": position(state).phase,
         "progress": progress(position(state)),
         "question": {"id": question["id"], "text": question["text"]},
+        "company": {"name": posting["company"]["name"], "place": posting["company"]["place"]} if posting else None,
+        "interviewer": {"name": posting["interviewer"]["name"], "role": posting["interviewer"]["role"]} if posting else None,
     }
 
 
@@ -167,7 +202,8 @@ async def answer(session_id: str, req: AnswerRequest) -> dict:
     analysis = state.get("analysis")
     turn_feedback = None
     if state["mode"] == "training" and analysis:
-        turn_feedback = {"short_tip": analysis["short_tip"], "scores": analysis["scores"]}
+        turn_feedback = {"short_tip": analysis["short_tip"], "scores": analysis["scores"],
+                         "problem_flags": analysis.get("problem_flags", [])}
 
     pos = position(state)
     if state.get("done"):

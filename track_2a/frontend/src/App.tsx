@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CreateSessionRequest, CreateSessionResponse, LanguageCode } from "./api";
+import { api, type CreateSessionRequest, type CreateSessionResponse, type CriterionId, type LanguageCode } from "./api";
 import FeedbackScreen from "./screens/FeedbackScreen";
 import InterviewScreen from "./screens/InterviewScreen";
 import SetupScreen from "./screens/SetupScreen";
@@ -11,12 +11,21 @@ export default function App() {
   const [language, setLanguage] = useState<LanguageCode>("de");
   const [session, setSession] = useState<CreateSessionResponse | null>(null);
   const [summary, setSummary] = useState("");
+  const [lastRequest, setLastRequest] = useState<CreateSessionRequest | null>(null);
 
   function handleStarted(newSession: CreateSessionResponse, request: CreateSessionRequest, newSummary: string) {
     setLanguage(request.language);
     setSession(newSession);
     setSummary(newSummary);
+    setLastRequest(request);
     setScreen("interview");
+  }
+
+  /** "Practise this": same settings as the last interview, focused on the weakest criteria */
+  async function handlePracticeAgain(focus: CriterionId[]) {
+    if (!lastRequest) return;
+    const request = { ...lastRequest, focus };
+    handleStarted(await api.createSession(request), request, summary);
   }
 
   function handleRestart() {
@@ -41,7 +50,12 @@ export default function App() {
       )}
 
       {screen === "feedback" && session && (
-        <FeedbackScreen sessionId={session.session_id} language={language} onRestart={handleRestart} />
+        <FeedbackScreen
+          sessionId={session.session_id}
+          language={language}
+          onRestart={handleRestart}
+          onPracticeAgain={handlePracticeAgain}
+        />
       )}
     </div>
   );
