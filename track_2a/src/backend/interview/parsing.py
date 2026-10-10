@@ -16,7 +16,7 @@ from typing import TypeVar
 from pydantic import BaseModel, ValidationError, field_validator
 
 from backend import llm
-from backend.interview.prompts import CRITERIA
+from backend.interview.prompts import CRITERIA, CRITERIA_LABELS
 
 logger = logging.getLogger("interview")
 
@@ -62,6 +62,19 @@ class Analysis(BaseModel):
         return bool(value)
 
 
+# Keys the model may use for a criterion: the id or its label in any language ("Relevanz", "Pertinence").
+_CRITERION_ALIASES = {_norm_key(key): key for key in CRITERIA}
+for _labels in CRITERIA_LABELS.values():
+    _CRITERION_ALIASES.update({_norm_key(label): key for key, label in _labels.items()})
+
+# Names the model may use instead of "comment".
+_COMMENT_KEYS = ("comment", "text", "reason", "explanation", "feedback")
+
+
+def _list_key(item: dict) -> str:
+    return str(next((item[k] for k in ("id", "criterion", "key", "name", "label") if item.get(k)), ""))
+
+
 class CriterionNote(BaseModel):
     comment: str = ""
     evidence: str = ""
@@ -82,9 +95,23 @@ class ReportDraft(BaseModel):
     @field_validator("criteria", mode="before")
     @classmethod
     def _normalise_criteria(cls, raw):
+        # Accept {"relevance": {...}}, {"Relevanz": "text"} and [{"id": "relevance", "comment": ...}].
+        if isinstance(raw, list):
+            raw = {_list_key(item): item for item in raw if isinstance(item, dict)}
         if not isinstance(raw, dict):
             return {}
-        return {_norm_key(k): v for k, v in raw.items() if _norm_key(k) in CRITERIA and isinstance(v, dict)}
+        notes = {}
+        for key, value in raw.items():
+            criterion = _CRITERION_ALIASES.get(_norm_key(key))
+            if criterion is None:
+                continue
+            if isinstance(value, str):
+                value = {"comment": value}
+            if isinstance(value, dict):
+                comment = next((value[k] for k in _COMMENT_KEYS if isinstance(value.get(k), str)), "")
+                evidence = value.get("evidence") if isinstance(value.get("evidence"), str) else ""
+                notes[criterion] = {"comment": comment, "evidence": evidence}
+        return notes
 
     @field_validator("improvements", mode="before")
     @classmethod

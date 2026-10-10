@@ -247,7 +247,7 @@ Generated with one LLM call the first time, then cached.
 ```
 
 - Numbers are computed in code from the per-answer analyses, not by the LLM: `criteria[].score` is
-  the rounded average per criterion, `overall_score` the average of all criteria (1 decimal),
+  the rounded average per criterion, `overall_score` the average of these six (rounded) scores (1 decimal),
   `next_practice` the two weakest criteria.
 - The LLM writes `comment`, `evidence`, `strengths` and `improvements`. `evidence` is only kept if it
   is a real quote from the candidate's answers, otherwise it is `""`.

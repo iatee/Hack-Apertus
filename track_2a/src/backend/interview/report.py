@@ -6,6 +6,8 @@ writes comments, strengths and improvements. Evidence quotes are kept only
 if they really appear in the candidate's answers.
 """
 
+import json
+import logging
 import re
 from statistics import mean
 from typing import Optional
@@ -13,6 +15,9 @@ from typing import Optional
 from backend import config
 from backend.interview.parsing import ReportDraft, complete_json
 from backend.interview.prompts import CRITERIA, CRITERIA_LABELS, report_messages
+
+
+logger = logging.getLogger("interview")
 
 
 class ReportUnavailable(RuntimeError):
@@ -46,6 +51,10 @@ async def build_report(session_id: str, state: dict) -> dict:
     if draft is None:
         raise ReportUnavailable(f"Report could not be generated: {error}")
 
+    missing = [key for key in averages if not (draft.criteria.get(key) and draft.criteria[key].comment)]
+    if missing:
+        logger.warning(json.dumps({"event": "report_comments_missing", "session_id": session_id, "criteria": missing}))
+
     labels = CRITERIA_LABELS[state["language"]]
     criteria = []
     for key, avg in averages.items():
@@ -61,7 +70,8 @@ async def build_report(session_id: str, state: dict) -> dict:
     return {
         "session_id": session_id,
         "language": state["language"],
-        "overall_score": round(mean(averages.values()), 1) if averages else None,
+        # Average of the shown (rounded) scores, so the overall score matches the bars.
+        "overall_score": round(mean(c["score"] for c in criteria), 1) if criteria else None,
         "criteria": criteria,
         "strengths": draft.strengths,
         "improvements": [i.model_dump() for i in draft.improvements],

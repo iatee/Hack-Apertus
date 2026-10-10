@@ -52,6 +52,14 @@ LANGUAGES = {
     "gsw": "Swiss German dialect (Schweizerdeutsch, e.g. Zurich dialect), written the way Swiss people write it in chats",
 }
 
+# How the coach (tips and final report) addresses the candidate: always informal, in all languages.
+ADDRESS = {
+    "de": "Address the candidate with informal 'du'. Never use 'Sie', 'man' or the third person ('der Kandidat', 'er', 'sie').",
+    "fr": "Address the candidate with informal 'tu'. Never use 'vous' or the third person ('le candidat', 'il', 'elle').",
+    "it": "Address the candidate with informal 'tu'. Never use 'Lei' or the third person ('il candidato', 'lui', 'lei').",
+}
+ADDRESS["gsw"] = ADDRESS["de"]
+
 # Fixed closing line when the candidate has no more questions (saves an LLM call). Key: (language, formal).
 CLOSING = {
     ("de", False): "Vielen Dank{name}! Es hat mich gefreut, dich kennenzulernen. Wir melden uns bald bei dir.",
@@ -82,7 +90,7 @@ def _candidate_info(candidate: Optional[dict]) -> str:
 
 
 _ANALYSIS_EXAMPLE = {
-    "scores": {key: 3 for key in CRITERIA},
+    "scores": {"relevance": 4, "structure": 2, "examples": 3, "motivation": 5, "language": 4, "self_reflection": 2},
     "short_tip": "One short, concrete tip for the candidate.",
     "follow_up": False,
 }
@@ -95,10 +103,13 @@ def analysis_messages(occupation: dict, language: str, question: str, answer: st
         f"{_setting(occupation)}\n"
         "Judge the answer by what can be expected from a school student, not from an experienced professional.\n"
         "Be encouraging: the tip should start with something positive and then give one concrete improvement.\n\n"
-        f"Score each criterion from 1 (weak) to 5 (excellent):\n{criteria}\n\n"
+        f"Score each criterion from 1 (weak) to 5 (excellent):\n{criteria}\n"
+        "Guide: 1 = no real answer (e.g. 'I don't know'), 3 = okay but general, 5 = clear, on topic and with a "
+        "concrete example. An answer that lists its points in order ('first ..., second ...') has good structure. "
+        "Score each criterion on its own; they usually differ.\n\n"
         'Set "follow_up" to true if the answer is vague or incomplete and a follow-up question would help.\n'
-        f'Write "short_tip" (one sentence, addressed to the candidate) in {LANGUAGES[language]}.\n\n'
-        "Respond with ONLY a JSON object, no other text, exactly in this shape:\n"
+        f'Write "short_tip" (one sentence) in {LANGUAGES[language]}. {ADDRESS[language]}\n\n'
+        "Respond with ONLY a JSON object, no other text, in this shape (the numbers are only an example):\n"
         f"{json.dumps(_ANALYSIS_EXAMPLE)}"
     )
     user = f"Interview question:\n{question}\n\nCandidate answer:\n{answer}"
@@ -121,6 +132,11 @@ def _task(mode: str, phase: str, question_number: int) -> str:
     return tasks[mode]
 
 
+_CLOSING_MODES = ("answer_and_close", "close")
+_NO_GOODBYE = (" The interview is not over yet: do not say goodbye, do not thank the candidate for the interview "
+               "and do not promise them the apprenticeship.")
+
+
 def interviewer_messages(occupation: dict, style: dict, language: str, candidate: Optional[dict], phase: str,
                          mode: str, question_number: int, transcript: list[dict]) -> list[dict]:
     system = (
@@ -134,6 +150,7 @@ def interviewer_messages(occupation: dict, style: dict, language: str, candidate
         "Keep it short (at most 3 sentences), use simple words and keep a positive tone suitable for a teenager. "
         "Do not evaluate or comment on the "
         "candidate's answers. Do not repeat questions that were already asked."
+        f"{'' if mode in _CLOSING_MODES else _NO_GOODBYE}"
     )
     messages = [{"role": "system", "content": system}]
     for turn in transcript:
@@ -160,12 +177,15 @@ def report_messages(occupation: dict, language: str, averages: dict[str, float],
         "You are an experienced career coach for young people. Write the final feedback after a practice "
         "interview for an apprenticeship.\n"
         f"{_setting(occupation)}\n"
-        f"Write all texts in {LANGUAGES[language]}, addressing the candidate directly. Be positive and "
+        f"Write all texts in {LANGUAGES[language]}. {ADDRESS[language]} Be positive and "
         "encouraging, suitable for a teenager, but honest about what to improve.\n"
-        "- criteria: for each criterion one sentence of comment, and as evidence an EXACT quote (a few words) "
-        "from the CANDIDATE's answers that supports it, or an empty string if there is none.\n"
+        f"- criteria: use exactly these keys: {', '.join(CRITERIA)}. For each one sentence of comment that "
+        "explains the score, and as evidence an EXACT quote (a few words) from the CANDIDATE's answers that "
+        "supports it, or an empty string if there is none.\n"
         "- strengths: 2-3 strengths, each referring to something the candidate actually said.\n"
-        "- improvements: 2-3 concrete tips, each with a short example of a better answer.\n"
+        "- improvements: 2-3 concrete tips, each referring to one of the candidate's answers, with a short "
+        "example of a better answer. The example may only use facts the candidate mentioned; for anything "
+        "else use a placeholder in square brackets, e.g. [dein Hobby].\n"
         "Base everything on the scores, tips and transcript below. Do not invent facts.\n\n"
         "Respond with ONLY a JSON object, no other text, in this shape:\n"
         f"{json.dumps(_REPORT_EXAMPLE, ensure_ascii=False)}"

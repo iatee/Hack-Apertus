@@ -271,3 +271,42 @@ def test_unknown_routes_use_error_format(api):
     resp = api.get("/api/v1/nope")
     assert resp.status_code == 404 and resp.json()["error"]["code"] == "INVALID_REQUEST"
     assert api.post("/api/v1/health").json()["error"]["code"] == "INVALID_REQUEST"  # wrong method
+
+
+def test_courtesy_reply_is_not_analysed(fake, api):
+    client = fake()
+    session = start(api)
+    body = send(api, session["session_id"], "q1", "Danke!").json()
+    assert client.calls[-1:] == ["interviewer"] and "analysis" not in client.calls
+    assert body["turn_feedback"] is None and body["meta"]["llm_calls"] == 1
+
+
+def test_report_overall_matches_shown_scores(fake, api):
+    scores = {"relevance": 4, "structure": 3, "examples": 3, "motivation": 3, "language": 3, "self_reflection": 3}
+    second = {**scores, "relevance": 3, "structure": 4}  # averages 3.5 -> 4 and 3.5 -> 4
+    fake(analysis_outputs=[json.dumps({"scores": s, "short_tip": "x"}) for s in (scores, second)])
+    session = start(api)
+    finish(api, session)
+    report = api.get(f"/api/v1/sessions/{session['session_id']}/report").json()
+    shown = [c["score"] for c in report["criteria"]]
+    assert report["overall_score"] == round(sum(shown) / len(shown), 1)
+
+
+def test_report_accepts_label_keys_and_string_comments(fake, api):
+    labels = {"Relevanz": "A", "Struktur": "B", "Konkrete Beispiele": "C", "Motivation": "D",
+              "Sprache & Ausdruck": "E", "Selbstreflexion": "F"}
+    fake(report_outputs=[json.dumps({"criteria": labels, "strengths": ["s"], "improvements": ["i"]})])
+    session = start(api)
+    finish(api, session)
+    report = api.get(f"/api/v1/sessions/{session['session_id']}/report").json()
+    assert [c["comment"] for c in report["criteria"]] == list("ABCDEF")
+
+
+def test_interviewer_may_only_say_goodbye_when_closing():
+    from backend.interview.prompts import interviewer_messages
+    occupation = {"label": {"de": "Informatiker/in EFZ"}, "description": "IT"}
+    style = {"prompt": "Be friendly.", "formal": False}
+    def system(mode):
+        return interviewer_messages(occupation, style, "de", None, "motivation", mode, 1, [])[0]["content"]
+    assert "do not say goodbye" in system("next_question")
+    assert "do not say goodbye" not in system("answer_and_close")

@@ -1,7 +1,7 @@
 import pytest
 
 from backend.interview.phases import (
-    MAX_CANDIDATE_TURNS, PHASE_ORDER, QUESTIONS_PER_PHASE, TOTAL_QUESTIONS, Position, has_no_more_questions,
+    MAX_CANDIDATE_TURNS, PHASE_ORDER, QUESTIONS_PER_PHASE, TOTAL_QUESTIONS, Position, has_no_more_questions, is_courtesy,
     next_step, progress,
 )
 
@@ -55,3 +55,12 @@ def test_progress_counts_main_questions_only():
     assert progress(at("motivation", 2, 1))["current"] == 3          # follow-ups don't count
     assert progress(at("candidate_questions", 2))["current"] == TOTAL_QUESTIONS
     assert progress(at("closing"))["current"] == TOTAL_QUESTIONS == 8
+
+
+@pytest.mark.parametrize("answer, expected", [
+    ("Danke!", True), ("Vielen Dank.", True), ("Merci vielmal", True), ("Merci beaucoup !", True),
+    ("Grazie mille", True), ("ok", True), ("Vielen Dank für das Gespräch!", True),
+    ("Danke, ich mag Informatik, weil ich gerne PCs baue.", False), ("Weiss nicht", False),
+])
+def test_is_courtesy(answer, expected):
+    assert is_courtesy(answer) is expected

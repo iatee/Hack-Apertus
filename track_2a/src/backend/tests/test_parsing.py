@@ -59,3 +59,23 @@ def test_report_draft_is_lenient_about_shape():
 def test_report_draft_needs_strengths_and_improvements():
     with pytest.raises(JSONParseError, match="strengths"):
         parse_json(json.dumps({"strengths": [], "improvements": [{"tip": "x"}]}), ReportDraft)
+
+
+@pytest.mark.parametrize("criteria", [
+    {key: f"Text {key}." for key in CRITERIA},                                        # plain strings
+    {"Relevanz": {"comment": "Text relevance."}, "Struktur": "Text structure.",       # labels as keys
+     "Konkrete Beispiele": {"reason": "Text examples."}, "Motivation": "Text motivation.",
+     "Sprache & Ausdruck": "Text language.", "Selbstreflexion": {"text": "Text self_reflection."}},
+    [{"id": key, "comment": f"Text {key}."} for key in CRITERIA],                     # list of objects
+    [{"criterion": key, "comment": f"Text {key}."} for key in CRITERIA],
+])
+def test_report_draft_accepts_common_criteria_shapes(criteria):
+    raw = {"criteria": criteria, "strengths": ["x"], "improvements": ["y"]}
+    draft = parse_json(json.dumps(raw), ReportDraft)
+    assert {key: note.comment for key, note in draft.criteria.items()} == {key: f"Text {key}." for key in CRITERIA}
+
+
+def test_report_draft_accepts_french_labels():
+    raw = {"criteria": {"Pertinence": "Bien.", "Autoréflexion": "Honnête."}, "strengths": ["x"], "improvements": ["y"]}
+    draft = parse_json(json.dumps(raw), ReportDraft)
+    assert set(draft.criteria) == {"relevance", "self_reflection"}

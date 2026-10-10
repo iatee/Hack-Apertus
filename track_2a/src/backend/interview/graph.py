@@ -1,7 +1,7 @@
 """LangGraph core loop: one turn = analysis call -> interviewer call.
 
-    START ─(answer in scored phase)─> analyze ─> interviewer ─> END
-      └──(opening question, or candidate_questions phase)──┘
+    START ─(real answer in scored phase)─> analyze ─> interviewer ─> END
+      └──(opening question, "Danke" or candidate_questions phase)──┘
 
 Where the interview goes next is decided in code (phases.py), not by the LLM.
 The final report is generated on request (report.py), not in the graph.
@@ -22,7 +22,7 @@ from langgraph.graph import END, START, StateGraph
 
 from backend import config, llm
 from backend.interview.parsing import Analysis, complete_json
-from backend.interview.phases import Position, is_scored, next_step
+from backend.interview.phases import Position, is_courtesy, is_scored, next_step
 from backend.interview.prompts import analysis_messages, closing_message, interviewer_messages
 
 logger = logging.getLogger("interview")
@@ -57,7 +57,9 @@ def position(state: InterviewState) -> Position:
 
 
 def route_start(state: InterviewState) -> str:
-    return "analyze" if state.get("answer") and is_scored(position(state).phase) else "interviewer"
+    answer = state.get("answer")
+    scored = answer and is_scored(position(state).phase) and not is_courtesy(answer)
+    return "analyze" if scored else "interviewer"
 
 
 async def analyze(state: InterviewState) -> dict:

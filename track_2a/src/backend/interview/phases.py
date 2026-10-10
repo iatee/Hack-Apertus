@@ -35,6 +35,13 @@ _NO_MORE_QUESTIONS = re.compile(
     re.IGNORECASE,
 )
 
+# Pure courtesy replies ("Danke!", "Vielen Dank für das Gespräch", "Merci beaucoup") carry nothing to score:
+# every word is from this list.
+_COURTESY_WORDS = set(
+    "danke dank dankeschön vielen herzlichen merci vielmal für das gespräch auch ok okay super gern gerne "
+    "beaucoup pour l'entretien de rien thanks thank you grazie mille per il colloquio prego".split()
+)
+
 
 @dataclass(frozen=True)
 class Position:
@@ -58,6 +65,11 @@ def progress(pos: Position) -> dict:
 
 def is_scored(phase: str) -> bool:
     return phase in SCORED_PHASES
+
+
+def is_courtesy(answer: str) -> bool:
+    words = re.findall(r"[\w']+", answer.lower())
+    return 0 < len(words) <= 6 and all(word in _COURTESY_WORDS for word in words)
 
 
 def has_no_more_questions(answer: str) -> bool:
