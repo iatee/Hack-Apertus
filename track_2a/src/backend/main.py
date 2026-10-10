@@ -19,6 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend import config, llm
 from backend.interview.graph import InterviewEngine, position
 from backend.interview.phases import progress
+from backend.interview.prompts import CRITERIA
 from backend.interview.report import ReportUnavailable, build_report
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -122,6 +123,7 @@ class SessionRequest(BaseModel):
     mode: Literal["training", "rehearsal"] = "training"
     candidate: Optional[Candidate] = None
     posting_id: Optional[str] = None  # FHGR posting (company); default per occupation and language
+    focus: list[str] = Field(default=[], max_length=3)  # criteria to practise (e.g. the report's next_practice)
 
     @model_validator(mode="after")
     def _known_ids(self):
@@ -131,6 +133,9 @@ class SessionRequest(BaseModel):
             raise ValueError(f"unknown interviewer_style '{self.interviewer_style}'")
         if self.posting_id and self.posting_id not in config.postings():
             raise ValueError(f"unknown posting_id '{self.posting_id}'")
+        unknown = [c for c in self.focus if c not in CRITERIA]
+        if unknown:
+            raise ValueError(f"unknown focus criteria: {', '.join(unknown)}")
         return self
 
 

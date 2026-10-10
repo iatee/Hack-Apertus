@@ -193,9 +193,17 @@ def _persona(posting: Optional[dict]) -> str:
             f"interview for an apprenticeship. Your manner: {i['style']}. {i.get('notes', '')}\n")
 
 
+def _focus(focus: Optional[list[str]], mode: str) -> str:
+    if not focus or mode in _CLOSING_MODES:
+        return ""
+    criteria = "; ".join(f"{key} ({CRITERIA[key]})" for key in focus)
+    return (f"This practice round focuses on: {criteria}. Where it fits the current goal, ask so that the "
+            "candidate can practise this.\n")
+
+
 def interviewer_messages(occupation: dict, style: dict, language: str, candidate: Optional[dict], phase: str,
                          mode: str, question_number: int, transcript: list[dict],
-                         posting: Optional[dict] = None) -> list[dict]:
+                         posting: Optional[dict] = None, focus: Optional[list[str]] = None) -> list[dict]:
     system = (
         f"{_persona(posting)}"
         f"{_setting(occupation, posting)}\n"
@@ -204,6 +212,7 @@ def interviewer_messages(occupation: dict, style: dict, language: str, candidate
         f"Conduct the interview in {LANGUAGES[language]}.\n"
         f"Current interview phase: {phase}.\n"
         f"{_task(mode, phase, question_number, posting)}\n"
+        f"{_focus(focus, mode)}"
         "Keep it short (at most 3 sentences), use simple words and keep a positive tone suitable for a teenager. "
         "Do not evaluate or comment on the "
         "candidate's answers. Do not repeat questions that were already asked."

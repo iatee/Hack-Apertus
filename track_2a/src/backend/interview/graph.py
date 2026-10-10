@@ -38,6 +38,7 @@ class InterviewState(TypedDict, total=False):
     occupation_id: str
     interviewer_style: str
     posting_id: Optional[str]  # FHGR posting: the company the interviewer works for
+    focus: list[str]  # criteria this round should practise (from a previous report)
     mode: str
     candidate: Optional[dict]
     # Session-wide (kept by the checkpointer across turns)
@@ -127,7 +128,7 @@ async def interviewer(state: InterviewState) -> dict:
         text = (await llm.chat_completion(
             interviewer_messages(config.occupations()[state["occupation_id"]], style, state["language"],
                                  state.get("candidate"), phase, mode, pos.questions_in_phase,
-                                 state.get("transcript", []) + new_turns, posting(state)),
+                                 state.get("transcript", []) + new_turns, posting(state), state.get("focus")),
             purpose="interviewer",
             temperature=0.7,
         )).strip()

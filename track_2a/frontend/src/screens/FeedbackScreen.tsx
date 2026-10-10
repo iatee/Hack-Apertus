@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { api, type LanguageCode, type Report } from "../api";
+import { api, type CriterionId, type LanguageCode, type Report } from "../api";
 import CardAccent from "../components/CardAccent";
 import { Check, ChevronLeft } from "../components/icons";
 import PrimaryButton from "../components/PrimaryButton";
@@ -10,6 +10,8 @@ type Props = {
   sessionId: string;
   language: LanguageCode;
   onRestart: () => void;
+  /** Start a new interview with the same settings that practises these criteria */
+  onPracticeAgain: (focus: CriterionId[]) => Promise<void>;
 };
 
 /** Bar colour by FHGR level (1-4): 3-4 Gut/Sehr gut = teal, 2 Ausbaufähig = yellow, 1 Ungenügend = red. */
@@ -19,8 +21,19 @@ function scoreColor(score: number) {
   return "var(--color-logo-red)";
 }
 
-export default function FeedbackScreen({ sessionId, language, onRestart }: Props) {
+export default function FeedbackScreen({ sessionId, language, onRestart, onPracticeAgain }: Props) {
   const text = t(language);
+  const [starting, setStarting] = useState(false);
+
+  async function practiceAgain(focus: CriterionId[]) {
+    setStarting(true);
+    try {
+      await onPracticeAgain(focus);
+    } catch {
+      setStarting(false);
+      setError(true);
+    }
+  }
 
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState(false);
@@ -132,6 +145,12 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
                 {observed.map((c) => (
                   <li key={c.id}>
                     <span className="font-bold">{text.criteria[c.id] ?? c.label}:</span> {c.comment}
+                    {/* The quote the score is based on (FHGR rule K1), only real quotes come from the backend */}
+                    {c.evidence && (
+                      <span className="mt-1 block border-l-2 border-line pl-2 text-charcoal-soft italic">
+                        {text.youSaid}: «{c.evidence}»
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -184,6 +203,11 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
                       {text.criteria[id]}
                     </span>
                   ))}
+                </div>
+                <div className="mt-4">
+                  <PrimaryButton onClick={() => practiceAgain(report.next_practice)} disabled={starting} wide>
+                    {starting ? text.starting : text.practiceThis}
+                  </PrimaryButton>
                 </div>
               </Card>
             )}

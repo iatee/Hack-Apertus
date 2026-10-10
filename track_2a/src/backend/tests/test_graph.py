@@ -405,3 +405,11 @@ def test_company_facts_in_analysis_and_candidate_answers(fake, api):
     assert "A well-prepared candidate could know" in client.last_analysis_system
     send(api, session["session_id"], turn["question"]["id"], "Wie sieht das erste Lehrjahr aus?")
     assert "Answer it briefly as the company" in client.last_system and "Basislehrjahr" in client.last_system
+
+
+def test_focus_criteria_go_into_the_interviewer_prompt(fake, api):
+    client = fake()
+    start(api, focus=["self_reflection", "initiative"])
+    assert "This practice round focuses on: self_reflection" in client.last_system
+    resp = api.post("/api/v1/sessions", json={**SETUP, "focus": ["structure"]})
+    assert resp.status_code == 400 and "focus" in resp.json()["error"]["message"]

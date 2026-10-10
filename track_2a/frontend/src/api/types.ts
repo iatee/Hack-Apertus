@@ -67,6 +67,9 @@ export type CreateSessionRequest = {
   interviewer_style: InterviewerStyle;
   mode: Mode;
   candidate?: Candidate;
+  posting_id?: string;
+  /** Criteria the new round should practise, e.g. the last report's next_practice */
+  focus?: CriterionId[];
 };
 
 export type Progress = { current: number; total: number };

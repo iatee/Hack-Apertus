@@ -126,6 +126,9 @@ Request:
 It sets the company the interviewer works for and who the interviewer is. Without it, the default
 posting of the occupation for that language is used (`data/occupations.yaml`).
 
+`focus` is optional: up to 3 criterion ids (e.g. the last report's `next_practice`). The interviewer then
+asks so that the candidate can practise these criteria. The feedback screen's "Genau das üben" button uses it.
+
 Response `201`:
 
 ```json
@@ -343,3 +346,4 @@ Generated with one LLM call the first time, then cached.
 | 2026-10-10 | **Breaking:** FHGR rubric (11 criteria, scale 1-4, `null` = not observed) replaces our 6 criteria (1-5). New `report.scale`; `overall_score` and `criteria[].score` can be `null`; `report.criteria` always has all 11; candidate questions are analysed (`initiative`); `history` candidate turns have `phase`. | Iago |
 | 2026-10-10 | Guardrails: `question.guard`, `turn_feedback.problem_flags`, report `closing` and `support_note`. Not breaking. | Iago |
 | 2026-10-10 | 12 main questions (intro 2, motivation 3, strengths/weaknesses 3, situational 3, + question round). Optional `posting_id`; `company` and `interviewer` in the session response; `postings` in `GET /config`. Not breaking. | Iago |
+| 2026-10-10 | Optional `focus` in `POST /sessions`. Not breaking. | Iago |

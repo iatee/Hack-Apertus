@@ -84,6 +84,8 @@ const texts = {
     nextPracticeTitle: "Das übst du als Nächstes",
     notObserved: "Dazu gab es im Gespräch noch keine Aussage",
     supportTitle: "Du bist nicht allein",
+    youSaid: "Du hast gesagt",
+    practiceThis: "Genau das üben",
     criteria: {
       clarity: "Klarheit",
       relevance: "Relevanz",
@@ -166,6 +168,8 @@ const texts = {
     nextPracticeTitle: "À travailler ensuite",
     notObserved: "Pas encore observé dans l'entretien",
     supportTitle: "Tu n'es pas seul·e",
+    youSaid: "Tu as dit",
+    practiceThis: "M'entraîner là-dessus",
     criteria: {
       clarity: "Clarté",
       relevance: "Pertinence",
@@ -248,6 +252,8 @@ const texts = {
     nextPracticeTitle: "Da esercitare ora",
     notObserved: "Non ancora osservato nel colloquio",
     supportTitle: "Non sei solo/a",
+    youSaid: "Hai detto",
+    practiceThis: "Allenarmi su questo",
     criteria: {
       clarity: "Chiarezza",
       relevance: "Pertinenza",
