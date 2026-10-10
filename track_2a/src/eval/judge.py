@@ -41,6 +41,10 @@ class Verdict(BaseModel):
         return scores
 
 
+class ScenarioVerdict(Verdict):
+    criteria_met: list[bool]  # one per success criterion of the scenario, in order
+
+
 def _guidelines() -> str:
     with open(DATASETS / "rubric" / "feedback_guidelines.json", encoding="utf-8") as f:
         groups = json.load(f)["groups"]
@@ -60,6 +64,39 @@ class Judge:
                                   api_key=os.environ.get("JUDGE_API_KEY") or os.environ["LLM_API_KEY"])
         self.calls = 0
 
+    async def _ask(self, system: str, user: str, model):
+        for _ in range(2):
+            self.calls += 1
+            response = await self.client.chat.completions.create(
+                model=self.model, temperature=0.0,
+                messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            )
+            try:
+                return parse_json(response.choices[0].message.content or "", model).model_dump()
+            except JSONParseError:
+                continue
+        return None
+
+    async def rate_scenario(self, transcript: str, report: dict, success_criteria: list[str]) -> Optional[dict]:
+        """A whole interview (coach questions + final feedback) against an FHGR scenario's success criteria."""
+        ours = {k: report[k] for k in ("criteria", "strengths", "improvements", "closing")}
+        numbered = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(success_criteria))
+        dimensions = "\n".join(f"- {k}: {v}" for k, v in DIMENSIONS.items())
+        system = (
+            "You are a strict evaluator of an AI interview coach for 14-16 year olds applying for an apprenticeship "
+            "in Switzerland. You get the whole practice interview and the coach's final feedback.\n"
+            f"1. For each success criterion, decide if the coach met it (true/false):\n{numbered}\n"
+            f"2. Rate the final feedback from 1 (poor) to 5 (excellent) on:\n{dimensions}\n\n"
+            f"Feedback rules (FHGR):\n{_guidelines()}\n\n"
+            'Respond with ONLY a JSON object: {"criteria_met": [true, false, ...], "scores": {"grounding": 1-5, ...}, '
+            '"violations": ["rule ids the feedback breaks"], "comment": "one sentence"}'
+        )
+        user = f"Interview:\n{transcript}\n\nFinal feedback (JSON):\n{json.dumps(ours, ensure_ascii=False)}"
+        verdict = await self._ask(system, user, ScenarioVerdict)
+        if verdict:
+            verdict["criteria_met"] = (verdict["criteria_met"] + [False] * len(success_criteria))[:len(success_criteria)]
+        return verdict
+
     async def rate_report(self, transcript: str, report: dict, reference: Optional[dict] = None) -> Optional[dict]:
         """Rate one final report. Returns the verdict as a dict, or None if the judge's JSON was unusable."""
         ours = {k: report[k] for k in ("criteria", "strengths", "improvements")}
@@ -75,14 +112,4 @@ class Judge:
         user = f"Transcript:\n{transcript}\n\nAI feedback (JSON):\n{json.dumps(ours, ensure_ascii=False)}"
         if reference:
             user += f"\n\nReference feedback written by an expert (JSON):\n{json.dumps(reference, ensure_ascii=False)}"
-        for _ in range(2):
-            self.calls += 1
-            response = await self.client.chat.completions.create(
-                model=self.model, temperature=0.0,
-                messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            )
-            try:
-                return parse_json(response.choices[0].message.content or "", Verdict).model_dump()
-            except JSONParseError:
-                continue
-        return None
+        return await self._ask(system, user, Verdict)

@@ -118,7 +118,7 @@ class Candidate(BaseModel):
 
 class SessionRequest(BaseModel):
     language: Literal["de", "fr", "it", "gsw"]
-    occupation_id: str
+    occupation_id: Optional[str] = None  # one of data/occupations.yaml; optional if posting_id is given
     interviewer_style: str = "friendly"
     mode: Literal["training", "rehearsal"] = "training"
     candidate: Optional[Candidate] = None
@@ -127,7 +127,9 @@ class SessionRequest(BaseModel):
 
     @model_validator(mode="after")
     def _known_ids(self):
-        if self.occupation_id not in config.occupations():
+        if not self.occupation_id and not self.posting_id:
+            raise ValueError("occupation_id or posting_id is required")
+        if self.occupation_id and self.occupation_id not in config.occupations():
             raise ValueError(f"unknown occupation_id '{self.occupation_id}'")
         if self.interviewer_style not in config.interviewer_styles():
             raise ValueError(f"unknown interviewer_style '{self.interviewer_style}'")

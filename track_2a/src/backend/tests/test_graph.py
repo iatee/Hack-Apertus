@@ -413,3 +413,11 @@ def test_focus_criteria_go_into_the_interviewer_prompt(fake, api):
     assert "This practice round focuses on: self_reflection" in client.last_system
     resp = api.post("/api/v1/sessions", json={**SETUP, "focus": ["structure"]})
     assert resp.status_code == 400 and "focus" in resp.json()["error"]["message"]
+
+
+def test_session_with_posting_only_uses_its_occupation(fake, api):
+    client = fake()
+    payload = {k: v for k, v in SETUP.items() if k != "occupation_id"} | {"posting_id": "P-17", "language": "fr"}
+    resp = api.post("/api/v1/sessions", json=payload)
+    assert resp.status_code == 201 and resp.json()["company"]["place"] == "Fribourg"
+    assert "Coiffeur/-euse EFZ" in client.last_system

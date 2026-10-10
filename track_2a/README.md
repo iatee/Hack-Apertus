@@ -152,7 +152,7 @@ Exit code 0 = gate OK, 1 = average ≥ 5 calls per answer, 2 = API error. Option
 
 ## Benchmarks (FHGR data)
 
-Two benches measure the coach against the FHGR development data in `datasets/` (not the hidden
+Three benches measure the coach against the FHGR development data in `datasets/` (not the hidden
 benchmark). They call Apertus through the backend code, so run them in the backend container.
 Results are saved as JSON in `data/eval/bench/`.
 
@@ -164,6 +164,10 @@ docker compose exec backend python -m eval.bench_answers --sample 120 --variant 
 # 2. The 13 gold interviews through analysis + report vs. the reference feedback,
 #    deterministic checks (du/Sie, language, empty texts, mojibake) and the LLM judge
 docker compose exec backend python -m eval.bench_transcripts --repeat 2
+
+# 3. FHGR scenarios as full interviews through the API, Apertus plays the candidate from the
+#    FHGR profile; call gate, checks, consistency, score vs. persona level, scenario success criteria
+docker compose exec backend python -m eval.bench_interviews --limit 6 --repeat 2
 ```
 
 The judge (`src/eval/judge.py`) is an open model, e.g. Apertus 70B, set with `JUDGE_NAME` in `.env`.

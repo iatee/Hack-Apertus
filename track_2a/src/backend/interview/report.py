@@ -67,7 +67,8 @@ async def build_report(session_id: str, state: dict, occupation: Optional[dict] 
 
     draft: Optional[ReportDraft]
     draft, _, error = await complete_json(
-        report_messages(occupation or config.occupations()[state["occupation_id"]], state["language"], scores,
+        report_messages(occupation or config.occupation_for(state.get("occupation_id"), state.get("posting_id")),
+                        state["language"], scores,
                         analyses, transcript, config.postings().get(state.get("posting_id") or "")),
         ReportDraft,
         purpose="report",

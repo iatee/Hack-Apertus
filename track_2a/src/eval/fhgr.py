@@ -47,6 +47,16 @@ def transcripts() -> list[dict]:
 
 
 @lru_cache
+def scenarios() -> dict[str, dict]:
+    return {s["id"]: s for s in _jsonl("scenarios/scenarios.jsonl")}
+
+
+@lru_cache
+def candidates() -> dict[str, dict]:
+    return {c["id"]: c for c in _jsonl("profiles/candidates.jsonl")}
+
+
+@lru_cache
 def _occupation_rows() -> dict[str, dict]:
     with open(DATASETS / "occupations.csv", encoding="utf-8") as f:
         return {row["id"]: row for row in csv.DictReader(f)}

@@ -347,3 +347,4 @@ Generated with one LLM call the first time, then cached.
 | 2026-10-10 | Guardrails: `question.guard`, `turn_feedback.problem_flags`, report `closing` and `support_note`. Not breaking. | Iago |
 | 2026-10-10 | 12 main questions (intro 2, motivation 3, strengths/weaknesses 3, situational 3, + question round). Optional `posting_id`; `company` and `interviewer` in the session response; `postings` in `GET /config`. Not breaking. | Iago |
 | 2026-10-10 | Optional `focus` in `POST /sessions`. Not breaking. | Iago |
+| 2026-10-10 | `occupation_id` is optional when `posting_id` is given (the posting's occupation is used). Not breaking. | Iago |

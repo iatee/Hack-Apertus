@@ -80,6 +80,10 @@ def posting(state: InterviewState) -> Optional[dict]:
     return config.postings().get(state.get("posting_id") or "")
 
 
+def occupation(state: InterviewState) -> dict:
+    return config.occupation_for(state.get("occupation_id"), state.get("posting_id"))
+
+
 async def run_analysis(occupation: dict, language: str, phase: str, question: str, answer: str,
                        posting_: Optional[dict] = None) -> tuple[dict, int]:
     """One analysis (1-3 calls). Returns (entry for state["analyses"], attempts). Also used by the eval benches."""
@@ -94,7 +98,7 @@ async def run_analysis(occupation: dict, language: str, phase: str, question: st
 
 
 async def analyze(state: InterviewState) -> dict:
-    entry, attempts = await run_analysis(config.occupations()[state["occupation_id"]], state["language"],
+    entry, attempts = await run_analysis(occupation(state), state["language"],
                                          position(state).phase, state["current_question"]["text"], state["answer"],
                                          posting(state))
     entry["question_id"] = state["current_question"]["id"]
@@ -126,7 +130,7 @@ async def interviewer(state: InterviewState) -> dict:
         # answer_and_close still answers within the candidate_questions phase.
         phase = "candidate_questions" if mode == "answer_and_close" else pos.phase
         text = (await llm.chat_completion(
-            interviewer_messages(config.occupations()[state["occupation_id"]], style, state["language"],
+            interviewer_messages(occupation(state), style, state["language"],
                                  state.get("candidate"), phase, mode, pos.questions_in_phase,
                                  state.get("transcript", []) + new_turns, posting(state), state.get("focus")),
             purpose="interviewer",

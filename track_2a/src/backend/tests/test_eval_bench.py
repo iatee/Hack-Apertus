@@ -68,3 +68,27 @@ def test_bench_transcripts_runs_with_fake_llm(fake):
     assert record["analysis_calls"] == record["candidate_answers"] == 14 and record["report_calls"] == 1
     assert set(record["scores"]) == set(CRITERIA) and record["checks"]["empty_comments"] == 0
     assert client.calls.count("report") == 1 and result["summary"]["levels"]["pairs"] == 11
+
+
+def test_bench_interviews_runs_a_scenario_through_the_api(fake, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from backend import config, main
+    from backend.interview.graph import InterviewEngine
+    from eval import bench_interviews
+    from eval.run_interview import ScriptedCandidate
+
+    fake()
+    real_candidate = bench_interviews.ProfileCandidate
+    monkeypatch.setattr(main, "engine", InterviewEngine())
+    monkeypatch.setattr(bench_interviews, "ProfileCandidate", lambda profile, posting, language: ScriptedCandidate(language))
+    client = TestClient(main.app, base_url="http://testserver/api/v1")
+    record = bench_interviews.run_scenario(client, "S-01", log=lambda *_: None)
+    assert record["posting_id"] == "P-01" and record["persona_level"] == 4 and len(record["success_criteria"]) == 5
+    assert record["report"]["criteria"] and record["summary"]["gate_ok"]
+    summary = bench_interviews.summarise([record])
+    assert summary["interviews"] == 1 and summary["gate_ok"] and "judge" not in summary
+
+    prompt = real_candidate._prompt(fhgr.candidates()["C-01"], config.postings()["P-01"], "de")
+    assert "Luca" in prompt and "Plessur Maschinenbau AG" in prompt and "very good" in prompt
+    assert bench_interviews.scenario_ids(None, ["apprenticeship_interview"], None)[:2] == ["S-01", "S-02"]

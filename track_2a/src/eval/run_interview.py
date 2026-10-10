@@ -122,19 +122,21 @@ def _call(client: httpx.Client, method: str, path: str, **kwargs) -> dict:
     return body
 
 
-def run_interview(client: httpx.Client, language: str, occupation_id: str, style: str, mode: str,
-                  candidate=None, log=print) -> dict:
-    """Run one interview through the API. Returns the full run record (turns, summary, report)."""
+def run_interview(client: httpx.Client, language: str, occupation_id: Optional[str], style: str, mode: str,
+                  candidate=None, log=print, overrides: Optional[dict] = None) -> dict:
+    """Run one interview through the API. Returns the full run record (turns, summary, report).
+
+    `overrides` are extra POST /sessions fields, e.g. {"posting_id": "P-01", "candidate": {...}}.
+    """
     config = _call(client, "GET", "/config")
-    occupation = next((o for o in config["occupations"] if o["id"] == occupation_id), None)
-    if occupation is None:
+    if occupation_id and not any(o["id"] == occupation_id for o in config["occupations"]):
         raise ApiFailure(f"unknown occupation '{occupation_id}', available: {[o['id'] for o in config['occupations']]}")
     candidate = candidate or ScriptedCandidate(language)
 
     started = time.perf_counter()
     turn = _call(client, "POST", "/sessions", json={
         "language": language, "occupation_id": occupation_id, "interviewer_style": style, "mode": mode,
-        "candidate": {"first_name": "Lara", "school_level": "Sek A"},
+        "candidate": {"first_name": "Lara", "school_level": "Sek A"}, **(overrides or {}),
     })
     session_id = turn["session_id"]
     log(f"Session {session_id} ({language}, {occupation_id}, {style}, {mode})\n")
