@@ -141,7 +141,8 @@ def test_candidate_questions_end_without_call_when_no_more_questions(fake, api):
     assert turn["progress"]["current"] == 8
 
     turn = send(api, session["session_id"], turn["question"]["id"], "Wie gross ist das Team?").json()
-    assert turn["meta"]["llm_calls"] == 1 and turn["turn_feedback"] is None and not turn["done"]
+    # The candidate's question is analysed too (initiative criterion).
+    assert turn["meta"]["llm_calls"] == 2 and turn["turn_feedback"] and not turn["done"]
     calls_before = len(client.calls)
     turn = send(api, session["session_id"], turn["question"]["id"], "Nein, danke.").json()
     assert turn["meta"]["llm_calls"] == 0 and len(client.calls) == calls_before
@@ -155,7 +156,7 @@ def test_last_candidate_question_is_answered_with_closing(fake, api):
     turn = run_until(api, session, "candidate_questions")
     turn = send(api, session["session_id"], turn["question"]["id"], "Wie gross ist das Team?").json()
     turn = send(api, session["session_id"], turn["question"]["id"], "Gibt es Berufsschule am Montag?").json()
-    assert turn["done"] and turn["meta"]["llm_calls"] == 1
+    assert turn["done"] and turn["meta"]["llm_calls"] == 2
     assert turn["closing_message"].startswith("Frage")  # the interviewer's LLM answer, not the fixed line
 
 
@@ -175,11 +176,12 @@ def test_report_is_generated_once_then_cached(fake, api):
 
     report = api.get(f"/api/v1/sessions/{sid}/report").json()
     assert client.calls.count("report") == 1
-    assert report["overall_score"] == 3.0 and len(report["criteria"]) == 6
-    assert report["criteria"][2] == {"id": "examples", "label": "Konkrete Beispiele", "score": 3,
-                                     "comment": "Kommentar examples.", "evidence": "baue gerne PCs"}
+    assert report["overall_score"] == 3.0 and len(report["criteria"]) == len(CRITERIA) == 11
+    assert report["scale"] == {"min": 1, "max": 4}
+    assert report["criteria"][5] == {"id": "concrete_examples", "label": "Konkrete Beispiele", "score": 3,
+                                     "comment": "Kommentar concrete_examples.", "evidence": "baue gerne PCs"}
     assert report["strengths"] and report["improvements"][0]["example_answer"]
-    assert report["next_practice"] == ["relevance", "structure"]  # ties keep criteria order
+    assert report["next_practice"] == ["clarity", "relevance"]  # ties keep rubric order
 
     assert api.get(f"/api/v1/sessions/{sid}/report").json() == report
     assert client.calls.count("report") == 1
@@ -282,8 +284,8 @@ def test_courtesy_reply_is_not_analysed(fake, api):
 
 
 def test_report_overall_matches_shown_scores(fake, api):
-    scores = {"relevance": 4, "structure": 3, "examples": 3, "motivation": 3, "language": 3, "self_reflection": 3}
-    second = {**scores, "relevance": 3, "structure": 4}  # averages 3.5 -> 4 and 3.5 -> 4
+    scores = {key: 3 for key in CRITERIA} | {"clarity": 4}
+    second = {**scores, "clarity": 3, "relevance": 4}  # means 3.5 -> 4 and 3.5 -> 4
     fake(analysis_outputs=[json.dumps({"scores": s, "short_tip": "x"}) for s in (scores, second)])
     session = start(api)
     finish(api, session)
@@ -293,13 +295,26 @@ def test_report_overall_matches_shown_scores(fake, api):
 
 
 def test_report_accepts_label_keys_and_string_comments(fake, api):
-    labels = {"Relevanz": "A", "Struktur": "B", "Konkrete Beispiele": "C", "Motivation": "D",
-              "Sprache & Ausdruck": "E", "Selbstreflexion": "F"}
+    from backend.interview.prompts import CRITERIA_LABELS
+    labels = {CRITERIA_LABELS["de"][key]: letter for key, letter in zip(CRITERIA, "ABCDEFGHIJK")}
     fake(report_outputs=[json.dumps({"criteria": labels, "strengths": ["s"], "improvements": ["i"]})])
     session = start(api)
     finish(api, session)
     report = api.get(f"/api/v1/sessions/{session['session_id']}/report").json()
-    assert [c["comment"] for c in report["criteria"]] == list("ABCDEF")
+    assert [c["comment"] for c in report["criteria"]] == list("ABCDEFGHIJK")
+
+
+def test_not_observed_criteria_have_no_score(fake, api):
+    only_two = {key: None for key in CRITERIA} | {"clarity": 2, "motivation": 4}
+    fake(analysis_outputs=[json.dumps({"scores": only_two, "short_tip": "x"})] * 20)
+    session = start(api)
+    finish(api, session)  # the candidate asks no question -> initiative is 1
+    report = api.get(f"/api/v1/sessions/{session['session_id']}/report").json()
+    by_id = {c["id"]: c for c in report["criteria"]}
+    assert {k: c["score"] for k, c in by_id.items() if c["score"] is not None} == \
+        {"clarity": 2, "motivation": 4, "initiative": 1}
+    assert by_id["preparation"]["comment"] == "Dazu gab es im Gespräch keine Aussage."
+    assert report["overall_score"] == 2.3 and report["next_practice"] == ["initiative", "clarity"]
 
 
 def test_interviewer_may_only_say_goodbye_when_closing():

@@ -11,12 +11,13 @@ import ast
 import json
 import logging
 import re
-from typing import TypeVar
+from typing import Optional, TypeVar
 
 from pydantic import BaseModel, ValidationError, field_validator
 
 from backend import llm
-from backend.interview.prompts import CRITERIA, CRITERIA_LABELS
+from backend.interview import rubric
+from backend.interview.prompts import CRITERIA
 
 logger = logging.getLogger("interview")
 
@@ -33,10 +34,17 @@ def _norm_key(key) -> str:
     return re.sub(r"[\s\-]+", "_", str(key).strip().lower())
 
 
-class Analysis(BaseModel):
-    """Output of the per-answer analysis call."""
+# Keys the model may use for a criterion: the id or its label in any language ("Klarheit", "Pertinence").
+_CRITERION_ALIASES = {_norm_key(key): key for key in CRITERIA}
+_CRITERION_ALIASES.update({_norm_key(label): key for label, key in rubric.all_labels().items()})
+_CRITERION_ALIASES.update({"examples": "concrete_examples", "self_awareness": "self_reflection",
+                           "demeanour": "demeanor"})
 
-    scores: dict[str, int]
+
+class Analysis(BaseModel):
+    """Output of the per-answer analysis call. Scores are 1-4, or None if the answer shows nothing about it."""
+
+    scores: dict[str, Optional[int]]
     short_tip: str = ""
     follow_up: bool = False
 
@@ -45,13 +53,13 @@ class Analysis(BaseModel):
     def _normalise_scores(cls, raw):
         if not isinstance(raw, dict):
             raise ValueError("scores must be an object")
-        scores = {}
+        scores = {key: None for key in CRITERIA}  # criteria the model leaves out count as not observed
         for key, value in raw.items():
-            if _norm_key(key) in CRITERIA:
-                scores[_norm_key(key)] = _to_score(value)
-        missing = [key for key in CRITERIA if key not in scores]
-        if missing:
-            raise ValueError(f"missing scores: {', '.join(missing)}")
+            criterion = _CRITERION_ALIASES.get(_norm_key(key))
+            if criterion:
+                scores[criterion] = _to_score(value)
+        if all(value is None for value in scores.values()):
+            raise ValueError("no criterion scored")
         return scores
 
     @field_validator("follow_up", mode="before")
@@ -62,10 +70,6 @@ class Analysis(BaseModel):
         return bool(value)
 
 
-# Keys the model may use for a criterion: the id or its label in any language ("Relevanz", "Pertinence").
-_CRITERION_ALIASES = {_norm_key(key): key for key in CRITERIA}
-for _labels in CRITERIA_LABELS.values():
-    _CRITERION_ALIASES.update({_norm_key(label): key for key, label in _labels.items()})
 
 # Names the model may use instead of "comment".
 _COMMENT_KEYS = ("comment", "text", "reason", "explanation", "feedback")
@@ -126,13 +130,18 @@ class ReportDraft(BaseModel):
         return value
 
 
-def _to_score(value) -> int:
+_NOT_OBSERVED = re.compile(r"^\s*(null|none|n/?a|-+|keine?|not observed|nicht beobachtet)?\s*$", re.IGNORECASE)
+
+
+def _to_score(value) -> Optional[int]:
     if isinstance(value, dict):  # {"score": 4, "reason": "..."}
         value = value.get("score", value.get("value"))
+    if value is None or _NOT_OBSERVED.match(str(value)):
+        return None
     match = re.search(r"\d+(\.\d+)?", str(value))
     if not match:
         raise ValueError(f"score is not a number: {value!r}")
-    return max(1, min(5, round(float(match.group()))))
+    return rubric.clamp(float(match.group()))
 
 
 def _candidates(text: str):

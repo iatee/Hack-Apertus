@@ -22,9 +22,9 @@ def test_scripted_interview_runs_to_the_end(fake, client, language):
     fake()
     run = runner.run_interview(client, language, "informatiker_efz", "friendly", "training", log=lambda *_: None)
     s = run["summary"]
-    # 7 scored answers + a candidate question + "no more questions"
+    # 7 scored answers + an analysed candidate question + "no more questions"
     assert s["answers"] == 9 and s["follow_ups"] == 0
-    assert s["llm_calls_total"] == 7 * 2 + 1 + 0 and s["llm_calls_avg"] == 1.67 and s["gate_ok"]
+    assert s["llm_calls_total"] == 7 * 2 + 2 + 0 and s["llm_calls_avg"] == 1.78 and s["gate_ok"]
     assert run["turns"][-1]["phase"] == "candidate_questions" and run["report"]["criteria"]
 
 

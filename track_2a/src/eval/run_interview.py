@@ -172,7 +172,7 @@ def run_interview(client: httpx.Client, language: str, occupation_id: str, style
         "llm_calls_total": sum(calls),
         "llm_calls_avg": round(sum(calls) / len(calls), 2) if calls else None,
         "llm_calls_max": max(calls) if calls else None,
-        "answers_with_retries": sum(1 for t in turns if t["phase"] != "candidate_questions" and (t["llm_calls"] or 0) > 2),
+        "answers_with_retries": sum(1 for t in turns if (t["llm_calls"] or 0) > 2),  # normal turns use 0-2 calls
         "follow_ups": sum(1 for t in turns if t["is_follow_up"]),
         "latency_avg_ms": round(sum(t["latency_ms"] or 0 for t in turns) / len(turns)) if turns else None,
         "duration_s": round(time.perf_counter() - started, 1),

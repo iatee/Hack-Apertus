@@ -7,25 +7,11 @@ apprenticeship (Lehrstelle / apprentissage / apprendistato) in Switzerland.
 import json
 from typing import Optional
 
-# The 6 analysis criteria (ids and labels from docs/api.md), each scored 1-5.
-CRITERIA = {
-    "relevance": "Does the answer address the question that was asked?",
-    "structure": "Clear beginning, middle and end (e.g. situation, action, result)?",
-    "examples": "Real situations and concrete examples instead of empty claims?",
-    "motivation": "Genuine interest in the occupation and the company?",
-    "language": "Clear, polite and age-appropriate expression?",
-    "self_reflection": "Honest view of own strengths and weaknesses?",
-}
+from backend.interview import rubric
 
-CRITERIA_LABELS = {
-    "de": {"relevance": "Relevanz", "structure": "Struktur", "examples": "Konkrete Beispiele",
-           "motivation": "Motivation", "language": "Sprache & Ausdruck", "self_reflection": "Selbstreflexion"},
-    "fr": {"relevance": "Pertinence", "structure": "Structure", "examples": "Exemples concrets",
-           "motivation": "Motivation", "language": "Langue et expression", "self_reflection": "Autoréflexion"},
-    "it": {"relevance": "Pertinenza", "structure": "Struttura", "examples": "Esempi concreti",
-           "motivation": "Motivazione", "language": "Lingua ed espressione", "self_reflection": "Autoriflessione"},
-}
-CRITERIA_LABELS["gsw"] = CRITERIA_LABELS["de"]
+# The 11 FHGR criteria (rubric.py), each scored 1-4 or null. Key -> what is assessed.
+CRITERIA = {key: c["what_is_assessed"]["en"] for key, c in rubric.criteria().items()}
+CRITERIA_LABELS = {lang: {key: rubric.label(key, lang) for key in CRITERIA} for lang in ("de", "fr", "it", "gsw")}
 
 # What each main question in a phase should cover (index = question number - 1).
 PHASE_GOALS = {
@@ -90,23 +76,24 @@ def _candidate_info(candidate: Optional[dict]) -> str:
 
 
 _ANALYSIS_EXAMPLE = {
-    "scores": {"relevance": 4, "structure": 2, "examples": 3, "motivation": 5, "language": 4, "self_reflection": 2},
+    "scores": {key: None for key in CRITERIA} | {"clarity": 3, "relevance": 4, "motivation": 2, "concrete_examples": 1},
     "short_tip": "One short, concrete tip for the candidate.",
     "follow_up": False,
 }
 
 
-def analysis_messages(occupation: dict, language: str, question: str, answer: str) -> list[dict]:
-    criteria = "\n".join(f"- {key}: {desc}" for key, desc in CRITERIA.items())
+def analysis_messages(occupation: dict, language: str, phase: str, question: str, answer: str) -> list[dict]:
+    criteria = "\n".join(rubric.describe(key) for key in CRITERIA)
+    focus = ", ".join(rubric.PHASE_FOCUS.get(phase, []))
     system = (
         "You evaluate a candidate's answer in a practice interview for an apprenticeship.\n"
         f"{_setting(occupation)}\n"
         "Judge the answer by what can be expected from a school student, not from an experienced professional.\n"
         "Be encouraging: the tip should start with something positive and then give one concrete improvement.\n\n"
-        f"Score each criterion from 1 (weak) to 5 (excellent):\n{criteria}\n"
-        "Guide: 1 = no real answer (e.g. 'I don't know'), 3 = okay but general, 5 = clear, on topic and with a "
-        "concrete example. An answer that lists its points in order ('first ..., second ...') has good structure. "
-        "Score each criterion on its own; they usually differ.\n\n"
+        f"Score each criterion from 1 to 4 using these levels:\n{criteria}\n\n"
+        "Use null for every criterion this one answer gives no information about. A single answer usually "
+        f"shows 2-5 criteria. In this part of the interview look especially at: {focus}.\n"
+        "Score each criterion on its own; they usually differ.\n"
         'Set "follow_up" to true if the answer is vague or incomplete and a follow-up question would help.\n'
         f'Write "short_tip" (one sentence) in {LANGUAGES[language]}. {ADDRESS[language]}\n\n'
         "Respond with ONLY a JSON object, no other text, in this shape (the numbers are only an example):\n"
@@ -161,16 +148,17 @@ def interviewer_messages(occupation: dict, style: dict, language: str, candidate
 
 
 _REPORT_EXAMPLE = {
-    "criteria": {key: {"comment": "One sentence about this criterion.", "evidence": "Exact quote from the candidate."}
-                 for key in CRITERIA},
+    "criteria": {key: {"comment": "One sentence that explains the score.", "evidence": "Exact quote from the candidate."}
+                 for key in ("clarity", "motivation")},
     "strengths": ["Strength 1", "Strength 2"],
     "improvements": [{"tip": "Concrete tip.", "example_answer": "A short example of a better answer."}],
 }
 
 
-def report_messages(occupation: dict, language: str, averages: dict[str, float], analyses: list[dict],
+def report_messages(occupation: dict, language: str, scores: dict[str, int], analyses: list[dict],
                     transcript: list[dict]) -> list[dict]:
-    scores = "\n".join(f"- {key}: {value:.1f}/5 ({CRITERIA[key]})" for key, value in averages.items())
+    """`scores`: the final 1-4 score of every observed criterion (computed in code)."""
+    score_lines = "\n".join(f"- {key}: {value}/{rubric.SCALE_MAX} ({CRITERIA[key]})" for key, value in scores.items())
     tips = "\n".join(f"- [{a['phase']}] {a['short_tip']}" for a in analyses if a.get("short_tip"))
     dialogue = "\n".join(f"{t['role'].upper()}: {t['text']}" for t in transcript)
     system = (
@@ -179,8 +167,8 @@ def report_messages(occupation: dict, language: str, averages: dict[str, float],
         f"{_setting(occupation)}\n"
         f"Write all texts in {LANGUAGES[language]}. {ADDRESS[language]} Be positive and "
         "encouraging, suitable for a teenager, but honest about what to improve.\n"
-        f"- criteria: use exactly these keys: {', '.join(CRITERIA)}. For each one sentence of comment that "
-        "explains the score, and as evidence an EXACT quote (a few words) from the CANDIDATE's answers that "
+        "- criteria: one entry for each criterion listed under 'Scores' below, with exactly that key. For each "
+        "one sentence of comment that explains the score, and as evidence an EXACT quote (a few words) from the CANDIDATE's answers that "
         "supports it, or an empty string if there is none.\n"
         "- strengths: 2-3 strengths, each referring to something the candidate actually said.\n"
         "- improvements: 2-3 concrete tips, each referring to one of the candidate's answers, with a short "
@@ -190,5 +178,5 @@ def report_messages(occupation: dict, language: str, averages: dict[str, float],
         "Respond with ONLY a JSON object, no other text, in this shape:\n"
         f"{json.dumps(_REPORT_EXAMPLE, ensure_ascii=False)}"
     )
-    user = f"Average scores:\n{scores or '(none)'}\n\nTips per answer:\n{tips or '(none)'}\n\nTranscript:\n{dialogue}"
+    user = f"Scores:\n{score_lines or '(none)'}\n\nTips per answer:\n{tips or '(none)'}\n\nTranscript:\n{dialogue}"
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]

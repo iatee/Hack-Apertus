@@ -21,13 +21,22 @@ export const PHASES: Phase[] = [
   "closing",
 ];
 
-export type CriterionId =
-  | "relevance"
-  | "structure"
-  | "examples"
-  | "motivation"
-  | "language"
-  | "self_reflection";
+/** The 11 FHGR criteria (datasets/rubric/criteria.json), in rubric order. */
+export const CRITERIA = [
+  "clarity",
+  "relevance",
+  "motivation",
+  "self_reflection",
+  "communication",
+  "concrete_examples",
+  "demeanor",
+  "preparation",
+  "goal_orientation",
+  "difficult_questions",
+  "initiative",
+] as const;
+
+export type CriterionId = (typeof CRITERIA)[number];
 
 export type Mode = "training" | "rehearsal";
 export type InterviewerStyle = "friendly" | "strict";
@@ -77,7 +86,8 @@ export type CreateSessionResponse = {
 
 // ---------- POST /sessions/{id}/answers ----------
 
-export type Scores = Record<CriterionId, number>; // each 1-5
+/** Each 1-4, or null when the answer showed nothing about this criterion. */
+export type Scores = Partial<Record<CriterionId, number | null>>;
 
 export type TurnFeedback = {
   short_tip: string;
@@ -119,11 +129,13 @@ export type SessionState = {
 export type Report = {
   session_id: string;
   language: LanguageCode;
-  overall_score: number;
+  scale: { min: number; max: number }; // 1-4
+  overall_score: number | null; // null if no criterion was observed
   criteria: {
     id: CriterionId;
     label: string;
-    score: number;
+    score: number | null; // null = not observed in the interview
+
     comment: string;
     evidence?: string;
   }[];

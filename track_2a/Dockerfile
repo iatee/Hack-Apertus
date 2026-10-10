@@ -10,6 +10,7 @@ COPY src/backend/requirements.txt src/backend/requirements.txt
 RUN pip install --no-cache-dir -r src/backend/requirements.txt
 
 COPY data/ data/
+COPY datasets/ datasets/
 COPY src/ src/
 
 EXPOSE 8000

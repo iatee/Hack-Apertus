@@ -20,7 +20,7 @@ If something changes, change it here first, then in the code.
 | IDs | Strings (UUID), never numbers |
 | Languages | `de`, `fr`, `it`, `gsw` (Swiss German, optional) |
 | Time | ISO 8601 in UTC, e.g. `2026-10-09T14:03:00Z` |
-| Scores | Integer 1-5 (1 = weak, 5 = excellent) |
+| Scores | Integer 1-4 (FHGR: 1 Ungenügend … 4 Sehr gut), or `null` = not observed |
 | Auth | None (local demo, no personal data stored) |
 
 ### Error format (all endpoints)
@@ -161,14 +161,18 @@ Response `200` (interview continues):
   },
   "turn_feedback": {
     "short_tip": "Guter Einstieg! Nenne noch, warum dich gerade diese Firma interessiert.",
-    "scores": { "relevance": 4, "structure": 3, "examples": 4, "motivation": 3, "language": 4, "self_reflection": 3 }
+    "scores": { "clarity": 3, "relevance": 4, "motivation": 3, "self_reflection": null, "communication": 3,
+                "concrete_examples": 2, "demeanor": null, "preparation": null, "goal_orientation": null,
+                "difficult_questions": null, "initiative": null }
   },
   "meta": { "llm_calls": 2, "latency_ms": 4120 }
 }
 ```
 
 - `turn_feedback` is only present in `mode: "training"`. In `rehearsal` it is `null`.
-  It is also `null` in the `candidate_questions` phase (not scored) and if the analysis failed.
+  `scores` has all 11 criteria, each 1-4 or `null` (this answer showed nothing about it).
+  `turn_feedback` is also `null` for courtesy replies ("Danke!"), for "no more questions" and if the
+  analysis failed. A candidate's own question in `candidate_questions` is analysed (for `initiative`).
 - `is_follow_up: true` means the interviewer digs deeper into the last answer instead of moving on.
 - `progress.current` counts main questions (8 in total). Follow-ups and the turns in the
   `candidate_questions` phase don't advance it, so it can stay the same for several turns.
@@ -225,14 +229,22 @@ Generated with one LLM call the first time, then cached.
 {
   "session_id": "3f8a2c1e-6b1d-4b7e-9a51-2d3e4f5a6b7c",
   "language": "de",
-  "overall_score": 3.6,
+  "scale": { "min": 1, "max": 4 },
+  "overall_score": 2.8,
   "criteria": [
     {
-      "id": "examples",
+      "id": "concrete_examples",
       "label": "Konkrete Beispiele",
-      "score": 4,
+      "score": 3,
       "comment": "Du hast dein PC-Projekt gut beschrieben.",
       "evidence": "In meiner Freizeit baue ich gerne PCs zusammen."
+    },
+    {
+      "id": "preparation",
+      "label": "Vorbereitung / Betriebskenntnis",
+      "score": null,
+      "comment": "Dazu gab es im Gespräch keine Aussage.",
+      "evidence": ""
     }
   ],
   "strengths": ["Natürlicher, sympathischer Einstieg", "Echtes Interesse an Technik"],
@@ -246,9 +258,12 @@ Generated with one LLM call the first time, then cached.
 }
 ```
 
+- `criteria` always lists all 11 criteria in rubric order. `score` is 1-4, or `null` if no answer
+  showed anything about the criterion (then `comment` is a fixed "not observed" text).
 - Numbers are computed in code from the per-answer analyses, not by the LLM: `criteria[].score` is
-  the rounded average per criterion, `overall_score` the average of these six (rounded) scores (1 decimal),
-  `next_practice` the two weakest criteria.
+  the rounded average of the non-null scores, `overall_score` the average of the shown scores
+  (1 decimal, `null` if nothing was observed), `next_practice` the two weakest criteria.
+  Exception: if the candidate asked no question at the end, `initiative` is 1 (rubric level 1).
 - The LLM writes `comment`, `evidence`, `strengths` and `improvements`. `evidence` is only kept if it
   is a real quote from the candidate's answers, otherwise it is `""`.
 - If the report can't be generated, the response is `502 LLM_UNAVAILABLE` and nothing is cached,
@@ -260,10 +275,24 @@ Generated with one LLM call the first time, then cached.
 
 **Phases (in order):** `intro` -> `motivation` -> `strengths_weaknesses` -> `situational` -> `candidate_questions` -> `closing`
 
-**Criteria (proposal, align with FHGR feedback guidelines after the Q&A on 8.10):**
+**Criteria:** the FHGR rubric, loaded from `datasets/rubric/criteria.json`. Scale 1 Ungenügend,
+2 Ausbaufähig, 3 Gut, 4 Sehr gut, or `null` = not observed. The first six are the challenge's core criteria.
 
 | id | DE label | Measures |
 |---|---|---|
+| `clarity` | Klarheit | Comprehensible, structured, traceable answers |
+| `relevance` | Relevanz | Fits the question and the apprenticeship |
+| `motivation` | Motivation | Genuine interest in the occupation and company |
+| `self_reflection` | Selbstreflexion | Realistic view of own strengths, weaknesses, experiences |
+| `communication` | Kommunikationsfähigkeit | Expression, tone, active listening (dialect is never penalised) |
+| `concrete_examples` | Konkrete Beispiele | Real situations instead of claims |
+| `demeanor` | Auftreten & Wirkung | Politeness, self-confidence, tone |
+| `preparation` | Vorbereitung / Betriebskenntnis | Knows the company and the occupation |
+| `goal_orientation` | Zielorientierung | Clear career choice and long-term ideas |
+| `difficult_questions` | Umgang mit schwierigen Fragen | Reaction to critical or unexpected questions |
+| `initiative` | Eigeninitiative | Asks own meaningful questions at the end |
+
+---|---|---|
 | `relevance` | Relevanz | Does the answer address the question? |
 | `structure` | Struktur | Clear beginning, middle, end (e.g. STAR) |
 | `examples` | Konkrete Beispiele | Real situations instead of empty claims |
@@ -287,3 +316,4 @@ Generated with one LLM call the first time, then cached.
 | 2026-10-06 | First draft | Iago |
 | 2026-10-06 | Port 8000 (matches backend skeleton), CORS for frontend dev server | Anina |
 | 2026-10-09 | Backend implements v1. Clarified: LLM calls incl. JSON retries, `progress` and question ids, `turn_feedback` in `candidate_questions`, `closing_message`, history after the end, how report numbers and `evidence` are made, report errors, dev-only `POST /chat`, CORS origin for the nginx container, `500 INTERNAL_ERROR`. No breaking changes. | Iago |
+| 2026-10-10 | **Breaking:** FHGR rubric (11 criteria, scale 1-4, `null` = not observed) replaces our 6 criteria (1-5). New `report.scale`; `overall_score` and `criteria[].score` can be `null`; `report.criteria` always has all 11; candidate questions are analysed (`initiative`); `history` candidate turns have `phase`. | Iago |

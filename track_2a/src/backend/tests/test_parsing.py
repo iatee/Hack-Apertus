@@ -25,20 +25,22 @@ def test_parses_messy_but_recoverable_output(text):
 
 def test_normalises_keys_and_score_formats():
     raw = {
-        "scores": {"Relevance": "4/5", "structure": 5.4, "Examples": {"score": 2},
-                   "self-reflection": "3", "motivation": 9, "language": 0},
+        "scores": {"Relevance": "3/4", "Klarheit": 3.6, "Examples": {"score": 2}, "self-reflection": "3",
+                   "motivation": 9, "communication": 0, "initiative": None, "preparation": "n/a", "demeanor": "-"},
         "follow_up": "ja",
     }
     result = parse_analysis(json.dumps(raw))
-    assert result.scores == {"relevance": 4, "structure": 5, "examples": 2,
-                             "self_reflection": 3, "motivation": 5, "language": 1}
+    observed = {key: value for key, value in result.scores.items() if value is not None}
+    assert observed == {"relevance": 3, "clarity": 4, "concrete_examples": 2, "self_reflection": 3,
+                        "motivation": 4, "communication": 1}
+    assert set(result.scores) == set(CRITERIA)  # left-out criteria are None (not observed)
     assert result.follow_up is True
 
 
 @pytest.mark.parametrize("text, error", [
     ("Die Antwort war gut.", "no JSON"),
-    (json.dumps({"scores": {"relevance": 4}}), "missing scores"),
-    (json.dumps({"scores": {**SCORES, "structure": "n/a"}}), "not a number"),
+    (json.dumps({"scores": {key: None for key in CRITERIA}}), "no criterion scored"),
+    (json.dumps({"scores": {**SCORES, "clarity": "gut"}}), "not a number"),
 ])
 def test_rejects_unusable_output(text, error):
     with pytest.raises(JSONParseError, match=error):
@@ -47,12 +49,12 @@ def test_rejects_unusable_output(text, error):
 
 def test_report_draft_is_lenient_about_shape():
     raw = {
-        "criteria": {"Examples": {"comment": "Gutes Beispiel.", "evidence": "PCs zusammen"}, "unknown": {}},
+        "criteria": {"Concrete examples": {"comment": "Gutes Beispiel.", "evidence": "PCs zusammen"}, "unknown": {}},
         "strengths": ["Sympathisch"],
         "improvements": ["Mehr Beispiele nennen."],
     }
     draft = parse_json(json.dumps(raw), ReportDraft)
-    assert set(draft.criteria) == {"examples"}
+    assert set(draft.criteria) == {"concrete_examples"}
     assert draft.improvements[0].tip == "Mehr Beispiele nennen." and draft.improvements[0].example_answer == ""
 
 
@@ -63,9 +65,12 @@ def test_report_draft_needs_strengths_and_improvements():
 
 @pytest.mark.parametrize("criteria", [
     {key: f"Text {key}." for key in CRITERIA},                                        # plain strings
-    {"Relevanz": {"comment": "Text relevance."}, "Struktur": "Text structure.",       # labels as keys
-     "Konkrete Beispiele": {"reason": "Text examples."}, "Motivation": "Text motivation.",
-     "Sprache & Ausdruck": "Text language.", "Selbstreflexion": {"text": "Text self_reflection."}},
+    {"Klarheit": {"comment": "Text clarity."}, "Relevanz": "Text relevance.",          # labels as keys
+     "Motivation": "Text motivation.", "Selbstreflexion": {"reason": "Text self_reflection."},
+     "Kommunikationsfähigkeit": "Text communication.", "Konkrete Beispiele": {"text": "Text concrete_examples."},
+     "Auftreten & Wirkung": "Text demeanor.", "Vorbereitung / Betriebskenntnis": "Text preparation.",
+     "Zielorientierung": "Text goal_orientation.", "Umgang mit schwierigen Fragen": "Text difficult_questions.",
+     "Eigeninitiative": "Text initiative."},
     [{"id": key, "comment": f"Text {key}."} for key in CRITERIA],                     # list of objects
     [{"criterion": key, "comment": f"Text {key}."} for key in CRITERIA],
 ])
@@ -76,6 +81,6 @@ def test_report_draft_accepts_common_criteria_shapes(criteria):
 
 
 def test_report_draft_accepts_french_labels():
-    raw = {"criteria": {"Pertinence": "Bien.", "Autoréflexion": "Honnête."}, "strengths": ["x"], "improvements": ["y"]}
+    raw = {"criteria": {"Pertinence": "Bien.", "Réflexion sur soi": "Honnête."}, "strengths": ["x"], "improvements": ["y"]}
     draft = parse_json(json.dumps(raw), ReportDraft)
     assert set(draft.criteria) == {"relevance", "self_reflection"}

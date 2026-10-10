@@ -1,5 +1,6 @@
 """Final report (GET /sessions/{id}/report): numbers from code, texts from one LLM call.
 
+FHGR rubric: 11 criteria, 1-4, or null when the interview showed nothing about it.
 Scores, overall score and next_practice are computed from the per-answer
 analyses, so they are consistent and can't be hallucinated. The LLM only
 writes comments, strengths and improvements. Evidence quotes are kept only
@@ -14,7 +15,9 @@ from typing import Optional
 
 from backend import config
 from backend.interview.parsing import ReportDraft, complete_json
-from backend.interview.prompts import CRITERIA, CRITERIA_LABELS, report_messages
+from backend.interview import rubric
+from backend.interview.phases import has_no_more_questions
+from backend.interview.prompts import CRITERIA, report_messages
 
 
 logger = logging.getLogger("interview")
@@ -35,15 +38,35 @@ def _verified_evidence(quote: str, candidate_texts: list[str]) -> str:
     return ""
 
 
+def final_scores(state: dict) -> tuple[dict[str, int], dict[str, float]]:
+    """Score per observed criterion (rounded mean, 1-4) and the unrounded means (for ranking).
+
+    Criteria no answer gave evidence for are left out (not observed). Exception: if the
+    candidate reached the question round and asked nothing, initiative is 1 (rubric level 1:
+    "No questions at the end").
+    """
+    analyses = [a for a in state.get("analyses", []) if not a.get("parse_failed")]
+    means = {}
+    for key in CRITERIA:
+        values = [a["scores"][key] for a in analyses if a["scores"].get(key) is not None]
+        if values:
+            means[key] = mean(values)
+    asked = any(t["role"] == "candidate" and t.get("phase") == "candidate_questions"
+                and not has_no_more_questions(t["text"]) for t in state.get("transcript", []))
+    if "initiative" not in means and state.get("done") and not asked:
+        means["initiative"] = rubric.SCALE_MIN
+    return {key: rubric.clamp(value) for key, value in means.items()}, means
+
+
 async def build_report(session_id: str, state: dict) -> dict:
-    scored = [a for a in state.get("analyses", []) if not a.get("parse_failed")]
-    averages = {key: mean(a["scores"][key] for a in scored) for key in CRITERIA} if scored else {}
+    scores, means = final_scores(state)
+    analyses = [a for a in state.get("analyses", []) if not a.get("parse_failed")]
     transcript = state.get("transcript", [])
     candidate_texts = [t["text"] for t in transcript if t["role"] == "candidate"]
 
     draft: Optional[ReportDraft]
     draft, _, error = await complete_json(
-        report_messages(config.occupations()[state["occupation_id"]], state["language"], averages, scored, transcript),
+        report_messages(config.occupations()[state["occupation_id"]], state["language"], scores, analyses, transcript),
         ReportDraft,
         purpose="report",
         temperature=0.4,
@@ -51,29 +74,30 @@ async def build_report(session_id: str, state: dict) -> dict:
     if draft is None:
         raise ReportUnavailable(f"Report could not be generated: {error}")
 
-    missing = [key for key in averages if not (draft.criteria.get(key) and draft.criteria[key].comment)]
+    missing = [key for key in scores if not (draft.criteria.get(key) and draft.criteria[key].comment)]
     if missing:
         logger.warning(json.dumps({"event": "report_comments_missing", "session_id": session_id, "criteria": missing}))
 
-    labels = CRITERIA_LABELS[state["language"]]
+    language = state["language"]
     criteria = []
-    for key, avg in averages.items():
-        note = draft.criteria.get(key)
+    for key in CRITERIA:  # all 11 in rubric order; not observed ones have score None
+        note = draft.criteria.get(key) if key in scores else None
         criteria.append({
             "id": key,
-            "label": labels[key],
-            "score": max(1, min(5, round(avg))),
-            "comment": note.comment if note else "",
+            "label": rubric.label(key, language),
+            "score": scores.get(key),
+            "comment": (note.comment if note else "") if key in scores else rubric.NOT_OBSERVED[language],
             "evidence": _verified_evidence(note.evidence, candidate_texts) if note else "",
         })
 
     return {
         "session_id": session_id,
-        "language": state["language"],
-        # Average of the shown (rounded) scores, so the overall score matches the bars.
-        "overall_score": round(mean(c["score"] for c in criteria), 1) if criteria else None,
+        "language": language,
+        "scale": {"min": rubric.SCALE_MIN, "max": rubric.SCALE_MAX},
+        # Average of the shown scores of the observed criteria, so the overall score matches the bars.
+        "overall_score": round(mean(scores.values()), 1) if scores else None,
         "criteria": criteria,
         "strengths": draft.strengths,
         "improvements": [i.model_dump() for i in draft.improvements],
-        "next_practice": sorted(averages, key=lambda k: averages[k])[:2],
+        "next_practice": sorted(means, key=lambda k: means[k])[:2],
     }

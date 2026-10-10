@@ -12,10 +12,10 @@ type Props = {
   onRestart: () => void;
 };
 
-/** Bar colour by score: low = red, middle = yellow, high = teal. */
+/** Bar colour by FHGR level (1-4): 3-4 Gut/Sehr gut = teal, 2 Ausbaufähig = yellow, 1 Ungenügend = red. */
 function scoreColor(score: number) {
-  if (score >= 4) return "var(--color-logo-teal)";
-  if (score >= 3) return "var(--color-logo-yellow)";
+  if (score >= 3) return "var(--color-logo-teal)";
+  if (score >= 2) return "var(--color-logo-yellow)";
   return "var(--color-logo-red)";
 }
 
@@ -44,9 +44,12 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
     setAttempt((n) => n + 1);
   }
 
-  // Criterion names come from our own texts, so they match the UI language
-  const chartData =
-    report?.criteria.map((c) => ({ name: text.criteria[c.id] ?? c.label, score: c.score })) ?? [];
+  // Only observed criteria get a bar; the others (score null) are listed below the chart.
+  // Criterion names come from our own texts, so they match the UI language.
+  const observed = report?.criteria.filter((c) => c.score !== null) ?? [];
+  const notObserved = report?.criteria.filter((c) => c.score === null) ?? [];
+  const chartData = observed.map((c) => ({ name: text.criteria[c.id] ?? c.label, score: c.score }));
+  const scaleMax = report?.scale?.max ?? 4;
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-page">
@@ -88,7 +91,7 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
             <Card>
               <p className="text-sm text-charcoal-soft">{text.overall}</p>
               <p className="text-5xl font-bold">
-                {report.overall_score.toFixed(1)}
+                {report.overall_score?.toFixed(1) ?? "–"}
                 <span className="ml-2 text-lg font-normal text-charcoal-soft">{text.outOf}</span>
               </p>
             </Card>
@@ -96,21 +99,21 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
             {/* Scores chart */}
             <Card>
               <h2 className="mb-3 text-xl font-bold">{text.scoresTitle}</h2>
-              <div className="h-64" role="img" aria-label={text.scoresTitle}>
+              <div style={{ height: chartData.length * 34 + 16 }} role="img" aria-label={text.scoresTitle}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 0 }}>
-                    <XAxis type="number" domain={[0, 5]} hide />
+                    <XAxis type="number" domain={[0, scaleMax]} hide />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={110}
+                      width={140}
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fontSize: 13, fill: "var(--color-charcoal)" }}
+                      tick={{ fontSize: 12, fill: "var(--color-charcoal)" }}
                     />
                     <Bar dataKey="score" radius={6} barSize={18} background={{ fill: "var(--color-line)", radius: 6 }}>
                       {chartData.map((d) => (
-                        <Cell key={d.name} fill={scoreColor(d.score)} />
+                        <Cell key={d.name} fill={scoreColor(d.score ?? 0)} />
                       ))}
                       <LabelList dataKey="score" position="right" fontSize={13} fontWeight={700} />
                     </Bar>
@@ -118,12 +121,17 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
                 </ResponsiveContainer>
               </div>
               <ul className="mt-3 space-y-2 text-sm">
-                {report.criteria.map((c) => (
+                {observed.map((c) => (
                   <li key={c.id}>
                     <span className="font-bold">{text.criteria[c.id] ?? c.label}:</span> {c.comment}
                   </li>
                 ))}
               </ul>
+              {notObserved.length > 0 && (
+                <p className="mt-3 text-sm text-charcoal-soft">
+                  {text.notObserved}: {notObserved.map((c) => text.criteria[c.id] ?? c.label).join(", ")}
+                </p>
+              )}
             </Card>
 
             {/* Strengths */}

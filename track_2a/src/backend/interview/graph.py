@@ -1,14 +1,15 @@
 """LangGraph core loop: one turn = analysis call -> interviewer call.
 
-    START ─(real answer in scored phase)─> analyze ─> interviewer ─> END
-      └──(opening question, "Danke" or candidate_questions phase)──┘
+    START ─(real answer or candidate question)─> analyze ─> interviewer ─> END
+      └──(opening question, "Danke", "no more questions")──┘
 
 Where the interview goes next is decided in code (phases.py), not by the LLM.
 The final report is generated on request (report.py), not in the graph.
 
 Calls per answer (JSON retries count as calls):
 - scored phases: 1-3 analysis calls (parsing.MAX_JSON_ATTEMPTS) + 1 interviewer -> normally 2, at most 4
-- candidate_questions: 1 interviewer call, or 0 if the candidate has no (more) questions
+- candidate_questions: the candidate's question is analysed too (initiative), so also normally 2;
+  0 if the candidate has no (more) questions
 If all analysis attempts fail, the turn continues without an analysis instead of erroring.
 """
 
@@ -22,7 +23,7 @@ from langgraph.graph import END, START, StateGraph
 
 from backend import config, llm
 from backend.interview.parsing import Analysis, complete_json
-from backend.interview.phases import Position, is_courtesy, is_scored, next_step
+from backend.interview.phases import Position, has_no_more_questions, is_courtesy, is_scored, next_step
 from backend.interview.prompts import analysis_messages, closing_message, interviewer_messages
 
 logger = logging.getLogger("interview")
@@ -41,7 +42,7 @@ class InterviewState(TypedDict, total=False):
     follow_ups_in_phase: int
     question_count: int  # interviewer questions so far, for ids q1, q2, ...
     current_question: Optional[dict]  # {"id", "text", "is_follow_up"}
-    transcript: Annotated[list[dict], operator.add]  # {"role": "interviewer"|"candidate", "question_id", "text"}
+    transcript: Annotated[list[dict], operator.add]  # {"role", "question_id", "text"}; candidate turns also "phase"
     analyses: Annotated[list[dict], operator.add]
     done: bool
     closing_message: Optional[str]
@@ -56,15 +57,22 @@ def position(state: InterviewState) -> Position:
     return Position(state["phase_index"], state["questions_in_phase"], state["follow_ups_in_phase"])
 
 
+def should_analyze(phase: str, answer: str) -> bool:
+    """Scored phases: every real answer. candidate_questions: real questions (for the initiative criterion)."""
+    if not answer or is_courtesy(answer):
+        return False
+    if phase == "candidate_questions":
+        return not has_no_more_questions(answer)
+    return is_scored(phase)
+
+
 def route_start(state: InterviewState) -> str:
-    answer = state.get("answer")
-    scored = answer and is_scored(position(state).phase) and not is_courtesy(answer)
-    return "analyze" if scored else "interviewer"
+    return "analyze" if should_analyze(position(state).phase, state.get("answer")) else "interviewer"
 
 
 async def analyze(state: InterviewState) -> dict:
     phase = position(state).phase
-    messages = analysis_messages(config.occupations()[state["occupation_id"]], state["language"],
+    messages = analysis_messages(config.occupations()[state["occupation_id"]], state["language"], phase,
                                  state["current_question"]["text"], state["answer"])
     result, attempts, error = await complete_json(messages, Analysis, purpose="analysis")
     entry = {"phase": phase, "question_id": state["current_question"]["id"]}
@@ -78,7 +86,8 @@ async def analyze(state: InterviewState) -> dict:
 async def interviewer(state: InterviewState) -> dict:
     new_turns = []
     if state.get("answer"):
-        new_turns.append({"role": "candidate", "question_id": state["current_question"]["id"], "text": state["answer"]})
+        new_turns.append({"role": "candidate", "question_id": state["current_question"]["id"], "text": state["answer"],
+                          "phase": position(state).phase})
         wants_follow_up = bool((state.get("analysis") or {}).get("follow_up"))
         pos, mode = next_step(position(state), state["answer"], wants_follow_up)
     else:

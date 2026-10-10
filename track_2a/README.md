@@ -56,18 +56,20 @@ curl localhost:8000/api/v1/sessions/<session_id>/report     # after the last ans
 ```
 Browser (React) ──> FastAPI backend ──> LangGraph turn ──> Apertus v1.5 8B (CSCS)
                                          │
-                       analysis call (6 criteria, JSON) ─> interviewer call (next question)
+                       analysis call (11 criteria, JSON) ─> interviewer call (next question)
 ```
 
-- **Two LLM calls per answer.** An *analysis call* scores the answer from 1 to 5 on six criteria
-  (`relevance`, `structure`, `examples`, `motivation`, `language`, `self_reflection`) and writes a short tip.
+- **Two LLM calls per answer.** An *analysis call* scores the answer on the FHGR rubric
+  (11 criteria from `datasets/rubric/criteria.json`, 1-4, `null` when the answer shows nothing about
+  a criterion) and writes a short tip.
   An *interviewer call* then asks the next question or a follow-up.
 - **The phase flow is decided in code, not by the LLM,** so every interview follows the same structure:
   intro (1 question) → motivation (2) → strengths/weaknesses (2) → situational (2) → candidate questions → closing.
   That makes 8 main questions. Each phase allows at most one follow-up when an answer is vague.
-  In the candidate-questions phase the candidate asks and the interviewer answers (not scored).
+  In the candidate-questions phase the candidate asks and the interviewer answers; the question is
+  analysed for `initiative`.
 - **Robust JSON.** The model's output is repaired in code where possible (code fences, extra text,
-  trailing commas, scores like `"4/5"`, …). Only unusable output is retried, up to 3 attempts.
+  trailing commas, scores like `"3/4"`, …). Only unusable output is retried, up to 3 attempts.
 - **The report** is generated with one LLM call when first requested, then cached. Scores and the overall
   score are averages computed in code. The LLM writes the comments, strengths and improvement tips.
   Quotes used as evidence are kept only if the candidate really said them.
