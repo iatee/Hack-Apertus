@@ -147,6 +147,26 @@ It prints every question, answer, tip and `llm_calls`, then a summary (average a
 answer, follow-ups, JSON retries, latency, report score) and saves the run as JSON in `data/eval/runs/`.
 Exit code 0 = gate OK, 1 = average ≥ 5 calls per answer, 2 = API error. Options: `--help`.
 
+## Benchmarks (FHGR data)
+
+Two benches measure the coach against the FHGR development data in `datasets/` (not the hidden
+benchmark). They call Apertus through the backend code, so run them in the backend container.
+Results are saved as JSON in `data/eval/bench/`.
+
+```bash
+# 1. Analysis call vs. 706 expert-annotated answers (MAE, agreement, follow-up precision/recall)
+docker compose exec backend python -m eval.bench_answers --sample 120
+docker compose exec backend python -m eval.bench_answers --sample 120 --variant baseline   # naive prompt
+
+# 2. The 13 gold interviews through analysis + report vs. the reference feedback,
+#    deterministic checks (du/Sie, language, empty texts, mojibake) and the LLM judge
+docker compose exec backend python -m eval.bench_transcripts --repeat 2
+```
+
+The judge (`src/eval/judge.py`) is an open model, e.g. Apertus 70B, set with `JUDGE_NAME` in `.env`.
+It rates the final feedback on grounding, accuracy, actionable next steps, tone and language, using
+the FHGR feedback rules. Without `JUDGE_NAME` the judge is skipped. The coach itself only uses Apertus 8B.
+
 ## Limitations
 
 - Sessions are kept in memory and are lost when the backend restarts.

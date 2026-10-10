@@ -12,6 +12,10 @@ services:
       LLM_NAME: ${LLM_NAME:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      # Eval only: judge model for python -m eval.bench_transcripts (see src/eval/judge.py)
+      JUDGE_NAME: ${JUDGE_NAME:-}
+      JUDGE_BASE_URL: ${JUDGE_BASE_URL:-}
+      JUDGE_API_KEY: ${JUDGE_API_KEY:-}
 
   frontend:
     build:

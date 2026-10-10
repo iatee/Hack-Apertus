@@ -58,7 +58,8 @@ def final_scores(state: dict) -> tuple[dict[str, int], dict[str, float]]:
     return {key: rubric.clamp(value) for key, value in means.items()}, means
 
 
-async def build_report(session_id: str, state: dict) -> dict:
+async def build_report(session_id: str, state: dict, occupation: Optional[dict] = None) -> dict:
+    """`occupation` defaults to the session's occupation from data/occupations.yaml (the benches pass their own)."""
     scores, means = final_scores(state)
     analyses = [a for a in state.get("analyses", []) if not a.get("parse_failed")]
     transcript = state.get("transcript", [])
@@ -66,7 +67,8 @@ async def build_report(session_id: str, state: dict) -> dict:
 
     draft: Optional[ReportDraft]
     draft, _, error = await complete_json(
-        report_messages(config.occupations()[state["occupation_id"]], state["language"], scores, analyses, transcript),
+        report_messages(occupation or config.occupations()[state["occupation_id"]], state["language"], scores,
+                        analyses, transcript),
         ReportDraft,
         purpose="report",
         temperature=0.4,

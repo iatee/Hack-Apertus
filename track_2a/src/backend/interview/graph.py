@@ -70,17 +70,24 @@ def route_start(state: InterviewState) -> str:
     return "analyze" if should_analyze(position(state).phase, state.get("answer")) else "interviewer"
 
 
-async def analyze(state: InterviewState) -> dict:
-    phase = position(state).phase
-    messages = analysis_messages(config.occupations()[state["occupation_id"]], state["language"], phase,
-                                 state["current_question"]["text"], state["answer"])
+async def run_analysis(occupation: dict, language: str, phase: str, question: str, answer: str) -> tuple[dict, int]:
+    """One analysis (1-3 calls). Returns (entry for state["analyses"], attempts). Also used by the eval benches."""
+    messages = analysis_messages(occupation, language, phase, question, answer)
     result, attempts, error = await complete_json(messages, Analysis, purpose="analysis")
-    entry = {"phase": phase, "question_id": state["current_question"]["id"]}
+    entry = {"phase": phase}
     if result is None:
         entry.update(parse_failed=True, error=error)
-        return {"analysis": None, "analysis_attempts": attempts, "analyses": [entry]}
-    entry.update(result.model_dump())
-    return {"analysis": entry, "analysis_attempts": attempts, "analyses": [entry]}
+    else:
+        entry.update(result.model_dump())
+    return entry, attempts
+
+
+async def analyze(state: InterviewState) -> dict:
+    entry, attempts = await run_analysis(config.occupations()[state["occupation_id"]], state["language"],
+                                         position(state).phase, state["current_question"]["text"], state["answer"])
+    entry["question_id"] = state["current_question"]["id"]
+    analysis = None if entry.get("parse_failed") else entry
+    return {"analysis": analysis, "analysis_attempts": attempts, "analyses": [entry]}
 
 
 async def interviewer(state: InterviewState) -> dict:
