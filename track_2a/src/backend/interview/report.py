@@ -15,7 +15,7 @@ from typing import Optional
 
 from backend import config
 from backend.interview.parsing import ReportDraft, complete_json
-from backend.interview import rubric
+from backend.interview import rubric, safety
 from backend.interview.phases import has_no_more_questions
 from backend.interview.prompts import CRITERIA, report_messages
 
@@ -102,4 +102,12 @@ async def build_report(session_id: str, state: dict, occupation: Optional[dict] 
         "strengths": draft.strengths,
         "improvements": [i.model_dump() for i in draft.improvements],
         "next_practice": sorted(means, key=lambda k: means[k])[:2],
+        "closing": draft.closing,
+        # FHGR rule L3: point to a real person when the interview showed distress.
+        "support_note": safety.SUPPORT_NOTE[language] if _distress(state) else None,
     }
+
+
+def _distress(state: dict) -> bool:
+    flagged = any(safety.SUPPORT_FLAGS & set(a.get("problem_flags", [])) for a in state.get("analyses", []))
+    return flagged or bool(state.get("support_needed"))

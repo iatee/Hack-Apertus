@@ -147,12 +147,14 @@ const reportTexts: Record<
   LanguageCode,
   {
     comments: Partial<Record<CriterionId, string>>;
+    closing: string;
     strengths: string[];
     tip: string;
     exampleAnswer: string;
   }
 > = {
   de: {
+    closing: "Du bist auf einem guten Weg – jedes Üben macht dich sicherer.",
     comments: {
       clarity: "Deine Antworten hatten meistens einen roten Faden.",
       relevance: "Du bist direkt auf die Fragen eingegangen und hast den Bezug zur Lehrstelle gemacht.",
@@ -167,6 +169,7 @@ const reportTexts: Record<
     exampleAnswer: "Mich spricht an, dass Sie Lernende früh in echte Projekte einbinden ...",
   },
   fr: {
+    closing: "Tu es sur la bonne voie – chaque entraînement te rend plus sûr·e de toi.",
     comments: {
       clarity: "Tes réponses avaient le plus souvent un fil rouge.",
       relevance: "Tu as répondu directement aux questions en faisant le lien avec l'apprentissage.",
@@ -181,6 +184,7 @@ const reportTexts: Record<
     exampleAnswer: "Ce qui me plaît, c'est que vous intégrez très tôt les apprentis à de vrais projets ...",
   },
   it: {
+    closing: "Sei sulla buona strada – ogni allenamento ti rende più sicuro/a.",
     comments: {
       clarity: "Le tue risposte avevano per lo più un filo conduttore.",
       relevance: "Hai risposto direttamente alle domande, collegandole all'apprendistato.",
@@ -195,6 +199,7 @@ const reportTexts: Record<
     exampleAnswer: "Mi piace che coinvolgiate gli apprendisti presto in progetti reali ...",
   },
   gsw: {
+    closing: "Du bisch uf emene guete Wäg – jedes Üebe macht di sicherer.",
     comments: {
       clarity: "Dini Antworte händ meischtens en rote Fade gha.",
       relevance: "Du bisch grad uf d Froge iigange und häsch de Bezug zur Lehrstell gmacht.",
@@ -365,6 +370,8 @@ export const mockApi: InterviewApi = {
       strengths: r.strengths,
       improvements: [{ tip: r.tip, example_answer: r.exampleAnswer }],
       next_practice: ["self_reflection", "initiative"],
+      closing: r.closing,
+      support_note: null,
     };
   },
 };

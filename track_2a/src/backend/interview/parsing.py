@@ -16,7 +16,7 @@ from typing import Optional, TypeVar
 from pydantic import BaseModel, ValidationError, field_validator
 
 from backend import llm
-from backend.interview import rubric
+from backend.interview import rubric, safety
 from backend.interview.prompts import CRITERIA
 
 logger = logging.getLogger("interview")
@@ -47,6 +47,13 @@ class Analysis(BaseModel):
     scores: dict[str, Optional[int]]
     short_tip: str = ""
     follow_up: bool = False
+    problem_flags: list[str] = []
+
+    @field_validator("problem_flags", mode="before")
+    @classmethod
+    def _known_flags(cls, raw):
+        items = [raw] if isinstance(raw, str) else raw if isinstance(raw, list) else []
+        return [f for f in dict.fromkeys(_norm_key(i) for i in items) if f in safety.PROBLEM_FLAGS]
 
     @field_validator("scores", mode="before")
     @classmethod
@@ -95,6 +102,12 @@ class ReportDraft(BaseModel):
     criteria: dict[str, CriterionNote] = {}
     strengths: list[str]
     improvements: list[Improvement]
+    closing: str = ""
+
+    @field_validator("closing", mode="before")
+    @classmethod
+    def _text_only(cls, raw):
+        return raw if isinstance(raw, str) else ""
 
     @field_validator("criteria", mode="before")
     @classmethod

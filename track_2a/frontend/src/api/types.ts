@@ -75,6 +75,8 @@ export type Question = {
   id: string;
   text: string;
   is_follow_up?: boolean;
+  /** Set when the guardrails answered instead of a normal question (see docs/api.md). */
+  guard?: "crisis" | "support" | "redirect";
 };
 
 export type CreateSessionResponse = {
@@ -92,6 +94,7 @@ export type Scores = Partial<Record<CriterionId, number | null>>;
 export type TurnFeedback = {
   short_tip: string;
   scores: Scores;
+  problem_flags?: string[];
 };
 
 export type AnswerResponse = {
@@ -142,6 +145,8 @@ export type Report = {
   strengths: string[];
   improvements: { tip: string; example_answer?: string }[];
   next_practice: CriterionId[];
+  closing?: string; // one encouraging sentence
+  support_note?: string | null; // where to get help, only if the interview showed distress
 };
 
 // ---------- Errors ----------

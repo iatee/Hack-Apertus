@@ -21,6 +21,7 @@ from typing import Optional
 from backend.interview.graph import run_analysis
 from backend.interview.parsing import Analysis, complete_json
 from backend.interview.prompts import CRITERIA
+from backend.interview.safety import PROBLEM_FLAGS
 from eval import fhgr
 
 
@@ -52,6 +53,7 @@ async def analyse(item: dict, variant: str) -> dict:
     pred = entry["scores"]
     seen = [v for v in pred.values() if v is not None]
     return {**record, "scores": pred, "short_tip": entry.get("short_tip", ""), "follow_up": entry.get("follow_up"),
+            "flags": entry.get("problem_flags", []),
             "mean_score": round(mean(seen), 2) if seen else None,
             **fhgr.compare_scores(pred, gold["criteria_scores"])}
 
@@ -73,6 +75,7 @@ def summarise(records: list[dict]) -> dict:
     fn = sum(1 for r in ok if not r["follow_up"] and r["gold_probe"])
     summary["follow_up"] = {"precision": round(tp / (tp + fp), 2) if tp + fp else None,
                             "recall": round(tp / (tp + fn), 2) if tp + fn else None}
+    summary["problem_flags"] = _flag_detection(ok)
     for field in ("lang", "answer_class"):
         groups = defaultdict(list)
         for r in ok:
@@ -84,6 +87,21 @@ def summarise(records: list[dict]) -> dict:
             per_criterion[key].append(fhgr.compare_scores({key: r["scores"].get(key)}, {key: r["gold_scores"][key]}))
     summary["by_criterion"] = {k: fhgr.score_agreement(per_criterion[k]) for k in CRITERIA if per_criterion[k]}
     return summary
+
+
+def _flag_detection(records: list[dict]) -> dict:
+    """Does the analysis flag the answers the experts flagged (only the flags our guardrails use)?"""
+    def counts(gold_has, pred_has):
+        tp = sum(1 for r in records if gold_has(r) and pred_has(r))
+        fp = sum(1 for r in records if not gold_has(r) and pred_has(r))
+        fn = sum(1 for r in records if gold_has(r) and not pred_has(r))
+        return {"gold": tp + fn, "precision": round(tp / (tp + fp), 2) if tp + fp else None,
+                "recall": round(tp / (tp + fn), 2) if tp + fn else None}
+
+    result = {"any": counts(lambda r: bool(set(r["problem_flags"]) & set(PROBLEM_FLAGS)), lambda r: bool(r.get("flags")))}
+    for flag in ("distress_signal", "manipulation_attempt"):
+        result[flag] = counts(lambda r, f=flag: f in r["problem_flags"], lambda r, f=flag: f in r.get("flags", []))
+    return result
 
 
 async def run(sample: Optional[int], variant: str, concurrency: int, log=print) -> dict:
@@ -115,7 +133,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     out = fhgr.save(f"answers-{args.variant}", result)
     s = result["summary"]
     print(json.dumps({k: s[k] for k in ("answers", "parse_failed", "avg_calls", "scores", "holistic_spearman",
-                                        "mean_score_by_class", "follow_up")}, indent=2))
+                                        "mean_score_by_class", "follow_up", "problem_flags")}, indent=2))
     print(f"Saved: {out}")
     return 0
 

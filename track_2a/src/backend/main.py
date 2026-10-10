@@ -167,7 +167,8 @@ async def answer(session_id: str, req: AnswerRequest) -> dict:
     analysis = state.get("analysis")
     turn_feedback = None
     if state["mode"] == "training" and analysis:
-        turn_feedback = {"short_tip": analysis["short_tip"], "scores": analysis["scores"]}
+        turn_feedback = {"short_tip": analysis["short_tip"], "scores": analysis["scores"],
+                         "problem_flags": analysis.get("problem_flags", [])}
 
     pos = position(state)
     if state.get("done"):

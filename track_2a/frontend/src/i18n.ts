@@ -83,6 +83,7 @@ const texts = {
     exampleAnswer: "Beispielantwort",
     nextPracticeTitle: "Das übst du als Nächstes",
     notObserved: "Dazu gab es im Gespräch noch keine Aussage",
+    supportTitle: "Du bist nicht allein",
     criteria: {
       clarity: "Klarheit",
       relevance: "Relevanz",
@@ -164,6 +165,7 @@ const texts = {
     exampleAnswer: "Exemple de réponse",
     nextPracticeTitle: "À travailler ensuite",
     notObserved: "Pas encore observé dans l'entretien",
+    supportTitle: "Tu n'es pas seul·e",
     criteria: {
       clarity: "Clarté",
       relevance: "Pertinence",
@@ -245,6 +247,7 @@ const texts = {
     exampleAnswer: "Esempio di risposta",
     nextPracticeTitle: "Da esercitare ora",
     notObserved: "Non ancora osservato nel colloquio",
+    supportTitle: "Non sei solo/a",
     criteria: {
       clarity: "Chiarezza",
       relevance: "Pertinenza",

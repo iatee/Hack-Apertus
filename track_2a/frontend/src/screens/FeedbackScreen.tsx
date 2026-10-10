@@ -87,6 +87,14 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
 
         {report && (
           <>
+            {/* Where to get help (FHGR rule L3), only when the interview showed distress */}
+            {report.support_note && (
+              <Card>
+                <h2 className="mb-2 text-xl font-bold">{text.supportTitle}</h2>
+                <p>{report.support_note}</p>
+              </Card>
+            )}
+
             {/* Overall score */}
             <Card>
               <p className="text-sm text-charcoal-soft">{text.overall}</p>
@@ -179,6 +187,8 @@ export default function FeedbackScreen({ sessionId, language, onRestart }: Props
                 </div>
               </Card>
             )}
+
+            {report.closing && <p className="px-2 text-center text-lg">{report.closing}</p>}
 
             <div className="pt-2 text-center">
               <PrimaryButton onClick={onRestart}>{text.newInterview}</PrimaryButton>

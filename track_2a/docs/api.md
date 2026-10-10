@@ -174,6 +174,16 @@ Response `200` (interview continues):
   `turn_feedback` is also `null` for courtesy replies ("Danke!"), for "no more questions" and if the
   analysis failed. A candidate's own question in `candidate_questions` is analysed (for `initiative`).
 - `is_follow_up: true` means the interviewer digs deeper into the last answer instead of moving on.
+- `question.guard` is only present when the guardrails answered (the interview stays at the same point,
+  `progress` does not move):
+  - `"crisis"`: the answer contained a clear sign of self-harm. Fixed text with Pro Juventute 147 and 144,
+    no LLM call, no `turn_feedback`.
+  - `"support"`: the analysis flagged distress. A warm reply, a hint to talk to a trusted person, an easier question.
+  - `"redirect"`: manipulation attempt, off-topic, impolite or discriminatory answer. Calm, stays in role,
+    asks the question again. Support and redirect happen at most once per question.
+- `turn_feedback.problem_flags`: FHGR problem flags the analysis found (`distress_signal`,
+  `manipulation_attempt`, `off_topic`, `inappropriate_tone`, `discriminatory`, `badmouthing`, `dishonesty`,
+  `privacy_oversharing`), usually `[]`.
 - `progress.current` counts main questions (8 in total). Follow-ups and the turns in the
   `candidate_questions` phase don't advance it, so it can stay the same for several turns.
 - Question ids (`q1`, `q2`, ...) count every interviewer question, including follow-ups.
@@ -254,7 +264,9 @@ Generated with one LLM call the first time, then cached.
       "example_answer": "Mich spricht an, dass Sie Lernende früh in echte Projekte einbinden ..."
     }
   ],
-  "next_practice": ["motivation", "self_reflection"]
+  "next_practice": ["motivation", "self_reflection"],
+  "closing": "Du bist auf einem guten Weg, jedes Üben macht dich sicherer.",
+  "support_note": null
 }
 ```
 
@@ -264,7 +276,10 @@ Generated with one LLM call the first time, then cached.
   the rounded average of the non-null scores, `overall_score` the average of the shown scores
   (1 decimal, `null` if nothing was observed), `next_practice` the two weakest criteria.
   Exception: if the candidate asked no question at the end, `initiative` is 1 (rubric level 1).
-- The LLM writes `comment`, `evidence`, `strengths` and `improvements`. `evidence` is only kept if it
+- `support_note` is a fixed text (where to get help, incl. Pro Juventute 147) when the interview showed
+  distress, else `null`. `closing` is one encouraging sentence written by the LLM (may be `""`).
+- The LLM writes `comment`, `evidence`, `strengths`, `improvements` and `closing`, following the FHGR
+  feedback rules (`datasets/rubric/feedback_guidelines.json`). `evidence` is only kept if it
   is a real quote from the candidate's answers, otherwise it is `""`.
 - If the report can't be generated, the response is `502 LLM_UNAVAILABLE` and nothing is cached,
   so the frontend can simply retry.
@@ -317,3 +332,4 @@ Generated with one LLM call the first time, then cached.
 | 2026-10-06 | Port 8000 (matches backend skeleton), CORS for frontend dev server | Anina |
 | 2026-10-09 | Backend implements v1. Clarified: LLM calls incl. JSON retries, `progress` and question ids, `turn_feedback` in `candidate_questions`, `closing_message`, history after the end, how report numbers and `evidence` are made, report errors, dev-only `POST /chat`, CORS origin for the nginx container, `500 INTERNAL_ERROR`. No breaking changes. | Iago |
 | 2026-10-10 | **Breaking:** FHGR rubric (11 criteria, scale 1-4, `null` = not observed) replaces our 6 criteria (1-5). New `report.scale`; `overall_score` and `criteria[].score` can be `null`; `report.criteria` always has all 11; candidate questions are analysed (`initiative`); `history` candidate turns have `phase`. | Iago |
+| 2026-10-10 | Guardrails: `question.guard`, `turn_feedback.problem_flags`, report `closing` and `support_note`. Not breaking. | Iago |

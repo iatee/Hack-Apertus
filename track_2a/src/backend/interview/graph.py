@@ -4,6 +4,8 @@
       └──(opening question, "Danke", "no more questions")──┘
 
 Where the interview goes next is decided in code (phases.py), not by the LLM.
+Guardrails (safety.py): a crisis answer gets a fixed support message (0 calls); a flagged answer
+(distress, manipulation, off-topic, ...) gets one supportive or redirecting question at the same point.
 The final report is generated on request (report.py), not in the graph.
 
 Calls per answer (JSON retries count as calls):
@@ -25,6 +27,7 @@ from backend import config, llm
 from backend.interview.parsing import Analysis, complete_json
 from backend.interview.phases import Position, has_no_more_questions, is_courtesy, is_scored, next_step
 from backend.interview.prompts import analysis_messages, closing_message, interviewer_messages
+from backend.interview.safety import CRISIS_MESSAGE, guard_mode, is_crisis
 
 logger = logging.getLogger("interview")
 
@@ -45,6 +48,7 @@ class InterviewState(TypedDict, total=False):
     transcript: Annotated[list[dict], operator.add]  # {"role", "question_id", "text"}; candidate turns also "phase"
     analyses: Annotated[list[dict], operator.add]
     done: bool
+    support_needed: bool  # distress or crisis seen -> the report adds a support note
     closing_message: Optional[str]
     report: Optional[dict]
     # Per turn (reset by each invoke)
@@ -59,7 +63,7 @@ def position(state: InterviewState) -> Position:
 
 def should_analyze(phase: str, answer: str) -> bool:
     """Scored phases: every real answer. candidate_questions: real questions (for the initiative criterion)."""
-    if not answer or is_courtesy(answer):
+    if not answer or is_courtesy(answer) or is_crisis(answer):
         return False
     if phase == "candidate_questions":
         return not has_no_more_questions(answer)
@@ -95,14 +99,21 @@ async def interviewer(state: InterviewState) -> dict:
     if state.get("answer"):
         new_turns.append({"role": "candidate", "question_id": state["current_question"]["id"], "text": state["answer"],
                           "phase": position(state).phase})
-        wants_follow_up = bool((state.get("analysis") or {}).get("follow_up"))
-        pos, mode = next_step(position(state), state["answer"], wants_follow_up)
+        analysis = state.get("analysis") or {}
+        guard = "crisis" if is_crisis(state["answer"]) else guard_mode(analysis.get("problem_flags", []),
+                                                                         state["current_question"])
+        if guard:  # stay at the same point of the interview
+            pos, mode = position(state), guard
+        else:
+            pos, mode = next_step(position(state), state["answer"], bool(analysis.get("follow_up")))
     else:
         pos, mode = Position(), "opening"
 
     style = config.interviewer_styles()[state["interviewer_style"]]
     if mode == "close":
         text = closing_message(state["language"], style["formal"], (state.get("candidate") or {}).get("first_name"))
+    elif mode == "crisis":
+        text = CRISIS_MESSAGE[state["language"]]
     else:
         # answer_and_close still answers within the candidate_questions phase.
         phase = "candidate_questions" if mode == "answer_and_close" else pos.phase
@@ -116,12 +127,16 @@ async def interviewer(state: InterviewState) -> dict:
 
     update = {"phase_index": pos.phase_index, "questions_in_phase": pos.questions_in_phase,
               "follow_ups_in_phase": pos.follow_ups_in_phase}
+    if mode in ("crisis", "support"):
+        update["support_needed"] = True
     if mode in ("close", "answer_and_close"):
         new_turns.append({"role": "interviewer", "question_id": None, "text": text})
         return {**update, "transcript": new_turns, "current_question": None, "done": True, "closing_message": text}
 
     question_count = state.get("question_count", 0) + 1
     question = {"id": f"q{question_count}", "text": text, "is_follow_up": mode == "follow_up"}
+    if mode in ("crisis", "support", "redirect"):
+        question["guard"] = mode
     new_turns.append({"role": "interviewer", "question_id": question["id"], "text": text})
     return {**update, "transcript": new_turns, "current_question": question, "question_count": question_count}
 

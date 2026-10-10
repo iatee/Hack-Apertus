@@ -84,3 +84,11 @@ def test_report_draft_accepts_french_labels():
     raw = {"criteria": {"Pertinence": "Bien.", "Réflexion sur soi": "Honnête."}, "strengths": ["x"], "improvements": ["y"]}
     draft = parse_json(json.dumps(raw), ReportDraft)
     assert set(draft.criteria) == {"relevance", "self_reflection"}
+
+
+def test_problem_flags_keep_only_known_values():
+    raw = {"scores": SCORES, "problem_flags": ["Distress signal", "made_up", "off-topic", "distress_signal"]}
+    assert parse_analysis(json.dumps(raw)).problem_flags == ["distress_signal", "off_topic"]
+    assert parse_analysis(json.dumps({"scores": SCORES, "problem_flags": "manipulation_attempt"})).problem_flags == \
+        ["manipulation_attempt"]
+    assert parse_analysis(VALID).problem_flags == []
