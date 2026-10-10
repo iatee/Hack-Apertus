@@ -84,6 +84,9 @@ export type CreateSessionResponse = {
   phase: Phase;
   progress: Progress;
   question: Question;
+  /** The FHGR posting's company and interviewer (null in the mock) */
+  company?: { name: string; place: string } | null;
+  interviewer?: { name: string; role: string } | null;
 };
 
 // ---------- POST /sessions/{id}/answers ----------

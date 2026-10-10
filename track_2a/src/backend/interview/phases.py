@@ -18,7 +18,8 @@ from typing import Literal
 PHASE_ORDER = ["intro", "motivation", "strengths_weaknesses", "situational", "candidate_questions", "closing"]
 
 # Main questions per scored phase (follow-ups come on top).
-QUESTIONS_PER_PHASE = {"intro": 1, "motivation": 2, "strengths_weaknesses": 2, "situational": 2}
+# 11 scored + the invitation to ask questions = 12 main questions (FHGR: a session has 10-15 plus follow-ups).
+QUESTIONS_PER_PHASE = {"intro": 2, "motivation": 3, "strengths_weaknesses": 3, "situational": 3}
 MAX_FOLLOW_UPS_PER_PHASE = 1
 MAX_CANDIDATE_TURNS = 2
 

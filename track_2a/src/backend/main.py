@@ -121,6 +121,7 @@ class SessionRequest(BaseModel):
     interviewer_style: str = "friendly"
     mode: Literal["training", "rehearsal"] = "training"
     candidate: Optional[Candidate] = None
+    posting_id: Optional[str] = None  # FHGR posting (company); default per occupation and language
 
     @model_validator(mode="after")
     def _known_ids(self):
@@ -128,6 +129,8 @@ class SessionRequest(BaseModel):
             raise ValueError(f"unknown occupation_id '{self.occupation_id}'")
         if self.interviewer_style not in config.interviewer_styles():
             raise ValueError(f"unknown interviewer_style '{self.interviewer_style}'")
+        if self.posting_id and self.posting_id not in config.postings():
+            raise ValueError(f"unknown posting_id '{self.posting_id}'")
         return self
 
 
@@ -159,13 +162,17 @@ async def create_session(req: SessionRequest) -> dict:
     setup = req.model_dump()
     if setup["candidate"]:
         setup["candidate"] = {k: v for k, v in setup["candidate"].items() if v}
+    setup["posting_id"] = req.posting_id or config.default_posting_id(req.occupation_id, req.language)
     state = await _llm(engine.start(session_id, setup))
     question = state["current_question"]
+    posting = config.postings().get(setup["posting_id"] or "")
     return {
         "session_id": session_id,
         "phase": position(state).phase,
         "progress": progress(position(state)),
         "question": {"id": question["id"], "text": question["text"]},
+        "company": {"name": posting["company"]["name"], "place": posting["company"]["place"]} if posting else None,
+        "interviewer": {"name": posting["interviewer"]["name"], "role": posting["interviewer"]["role"]} if posting else None,
     }
 
 

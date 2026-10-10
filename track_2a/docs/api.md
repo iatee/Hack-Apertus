@@ -122,19 +122,28 @@ Request:
 
 `candidate` is optional and only used to personalise questions. Use fake data in demos.
 
+`posting_id` is optional: an FHGR posting (`P-01` … `P-30`, listed in `GET /config` under `postings`).
+It sets the company the interviewer works for and who the interviewer is. Without it, the default
+posting of the occupation for that language is used (`data/occupations.yaml`).
+
 Response `201`:
 
 ```json
 {
   "session_id": "3f8a2c1e-6b1d-4b7e-9a51-2d3e4f5a6b7c",
   "phase": "intro",
-  "progress": { "current": 1, "total": 8 },
+  "progress": { "current": 1, "total": 12 },
   "question": {
     "id": "q1",
     "text": "Grüezi Lara! Erzähl mir doch zuerst etwas über dich."
-  }
+  },
+  "company": { "name": "Limmatcode GmbH", "place": "Zürich" },
+  "interviewer": { "name": "Stefan Keller", "role": "Berufsbildner, Senior Software Engineer" }
 }
 ```
+
+`company` and `interviewer` come from the posting (`null` if there is none). In the `candidate_questions`
+phase the interviewer answers as this company, using only the posting's facts.
 
 ### POST `/sessions/{session_id}/answers`
 
@@ -153,7 +162,7 @@ Response `200` (interview continues):
 {
   "done": false,
   "phase": "motivation",
-  "progress": { "current": 2, "total": 8 },
+  "progress": { "current": 2, "total": 12 },
   "question": {
     "id": "q2",
     "text": "Spannend! Wie bist du darauf gekommen, Informatikerin zu werden?",
@@ -184,7 +193,7 @@ Response `200` (interview continues):
 - `turn_feedback.problem_flags`: FHGR problem flags the analysis found (`distress_signal`,
   `manipulation_attempt`, `off_topic`, `inappropriate_tone`, `discriminatory`, `badmouthing`, `dishonesty`,
   `privacy_oversharing`), usually `[]`.
-- `progress.current` counts main questions (8 in total). Follow-ups and the turns in the
+- `progress.current` counts main questions (12 in total). Follow-ups and the turns in the
   `candidate_questions` phase don't advance it, so it can stay the same for several turns.
 - Question ids (`q1`, `q2`, ...) count every interviewer question, including follow-ups.
 
@@ -194,7 +203,7 @@ Response `200` (interview finished):
 {
   "done": true,
   "phase": "closing",
-  "progress": { "current": 8, "total": 8 },
+  "progress": { "current": 12, "total": 12 },
   "question": null,
   "closing_message": "Vielen Dank, Lara! Wir melden uns bald bei dir.",
   "turn_feedback": null,
@@ -217,7 +226,7 @@ Lets the frontend restore the chat after a page reload.
   "mode": "training",
   "done": false,
   "phase": "motivation",
-  "progress": { "current": 2, "total": 8 },
+  "progress": { "current": 2, "total": 12 },
   "history": [
     { "role": "interviewer", "question_id": "q1", "text": "Grüezi Lara! Erzähl mir doch zuerst etwas über dich." },
     { "role": "candidate", "question_id": "q1", "text": "Ich bin Lara, 15, ..." },
@@ -333,3 +342,4 @@ Generated with one LLM call the first time, then cached.
 | 2026-10-09 | Backend implements v1. Clarified: LLM calls incl. JSON retries, `progress` and question ids, `turn_feedback` in `candidate_questions`, `closing_message`, history after the end, how report numbers and `evidence` are made, report errors, dev-only `POST /chat`, CORS origin for the nginx container, `500 INTERNAL_ERROR`. No breaking changes. | Iago |
 | 2026-10-10 | **Breaking:** FHGR rubric (11 criteria, scale 1-4, `null` = not observed) replaces our 6 criteria (1-5). New `report.scale`; `overall_score` and `criteria[].score` can be `null`; `report.criteria` always has all 11; candidate questions are analysed (`initiative`); `history` candidate turns have `phase`. | Iago |
 | 2026-10-10 | Guardrails: `question.guard`, `turn_feedback.problem_flags`, report `closing` and `support_note`. Not breaking. | Iago |
+| 2026-10-10 | 12 main questions (intro 2, motivation 3, strengths/weaknesses 3, situational 3, + question round). Optional `posting_id`; `company` and `interviewer` in the session response; `postings` in `GET /config`. Not breaking. | Iago |

@@ -37,6 +37,7 @@ class InterviewState(TypedDict, total=False):
     language: str
     occupation_id: str
     interviewer_style: str
+    posting_id: Optional[str]  # FHGR posting: the company the interviewer works for
     mode: str
     candidate: Optional[dict]
     # Session-wide (kept by the checkpointer across turns)
@@ -74,9 +75,14 @@ def route_start(state: InterviewState) -> str:
     return "analyze" if should_analyze(position(state).phase, state.get("answer")) else "interviewer"
 
 
-async def run_analysis(occupation: dict, language: str, phase: str, question: str, answer: str) -> tuple[dict, int]:
+def posting(state: InterviewState) -> Optional[dict]:
+    return config.postings().get(state.get("posting_id") or "")
+
+
+async def run_analysis(occupation: dict, language: str, phase: str, question: str, answer: str,
+                       posting_: Optional[dict] = None) -> tuple[dict, int]:
     """One analysis (1-3 calls). Returns (entry for state["analyses"], attempts). Also used by the eval benches."""
-    messages = analysis_messages(occupation, language, phase, question, answer)
+    messages = analysis_messages(occupation, language, phase, question, answer, posting_)
     result, attempts, error = await complete_json(messages, Analysis, purpose="analysis")
     entry = {"phase": phase}
     if result is None:
@@ -88,7 +94,8 @@ async def run_analysis(occupation: dict, language: str, phase: str, question: st
 
 async def analyze(state: InterviewState) -> dict:
     entry, attempts = await run_analysis(config.occupations()[state["occupation_id"]], state["language"],
-                                         position(state).phase, state["current_question"]["text"], state["answer"])
+                                         position(state).phase, state["current_question"]["text"], state["answer"],
+                                         posting(state))
     entry["question_id"] = state["current_question"]["id"]
     analysis = None if entry.get("parse_failed") else entry
     return {"analysis": analysis, "analysis_attempts": attempts, "analyses": [entry]}
@@ -120,7 +127,7 @@ async def interviewer(state: InterviewState) -> dict:
         text = (await llm.chat_completion(
             interviewer_messages(config.occupations()[state["occupation_id"]], style, state["language"],
                                  state.get("candidate"), phase, mode, pos.questions_in_phase,
-                                 state.get("transcript", []) + new_turns),
+                                 state.get("transcript", []) + new_turns, posting(state)),
             purpose="interviewer",
             temperature=0.7,
         )).strip()

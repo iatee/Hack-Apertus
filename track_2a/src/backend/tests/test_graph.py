@@ -38,8 +38,10 @@ class FakeLLM:
 
     async def create(self, model, messages, **kwargs):
         system = messages[0]["content"]
-        self.last_system = system
+        if "You evaluate" not in system:
+            self.last_system = system
         if "You evaluate" in system:
+            self.last_analysis_system = system
             self.calls.append("analysis")
             content = self.analysis_outputs.pop(0) if self.analysis_outputs else analysis_json()
         elif "career coach" in system:
@@ -88,13 +90,13 @@ def run_until(api, session, phase, text="Ich baue gerne PCs zusammen."):
 def test_normal_turn_uses_two_calls(fake, api):
     client = fake()
     session = start(api)
-    assert session["question"]["id"] == "q1" and session["progress"] == {"current": 1, "total": 8}
+    assert session["question"]["id"] == "q1" and session["progress"] == {"current": 1, "total": 12}
 
     resp = send(api, session["session_id"], "q1", "Ich bin Lara und baue gerne PCs zusammen.")
     body = resp.json()
     assert resp.status_code == 200 and body["meta"]["llm_calls"] == 2
     assert client.calls[-2:] == ["analysis", "interviewer"]
-    assert body["phase"] == "motivation" and body["progress"]["current"] == 2
+    assert body["phase"] == "intro" and body["progress"]["current"] == 2  # intro has 2 main questions
     assert body["question"] == {"id": "q2", "text": body["question"]["text"], "is_follow_up": False}
     assert body["turn_feedback"] == {"short_tip": "Nenne ein Beispiel.", "scores": {key: 3 for key in CRITERIA},
                                      "problem_flags": []}
@@ -140,7 +142,7 @@ def test_candidate_questions_end_without_call_when_no_more_questions(fake, api):
     client = fake()
     session = start(api)
     turn = run_until(api, session, "candidate_questions")
-    assert turn["progress"]["current"] == 8
+    assert turn["progress"]["current"] == 12
 
     turn = send(api, session["session_id"], turn["question"]["id"], "Wie gross ist das Team?").json()
     # The candidate's question is analysed too (initiative criterion).
@@ -225,7 +227,7 @@ def test_session_state_for_reload(fake, api):
     sid = session["session_id"]
     send(api, sid, "q1", "Ich bin Lara.")
     state = api.get(f"/api/v1/sessions/{sid}").json()
-    assert state["current_question_id"] == "q2" and state["phase"] == "motivation" and not state["done"]
+    assert state["current_question_id"] == "q2" and state["phase"] == "intro" and not state["done"]
     assert [(h["role"], h["question_id"]) for h in state["history"]] == [
         ("interviewer", "q1"), ("candidate", "q1"), ("interviewer", "q2")]
 
@@ -354,7 +356,7 @@ def test_distress_flag_gets_support_question_once(fake, api):
     assert "very unsure or upset" in client.last_system
     # A second flagged answer to the support question moves on normally (no loop).
     body = send(api, session["session_id"], body["question"]["id"], "Weiss nicht.").json()
-    assert "guard" not in body["question"] and body["phase"] == "motivation"
+    assert "guard" not in body["question"] and body["progress"]["current"] == 2
 
 
 def test_manipulation_is_redirected_and_report_has_support_note(fake, api):
@@ -374,3 +376,32 @@ def test_report_has_no_support_note_without_distress(fake, api):
     session = start(api)
     finish(api, session)
     assert api.get(f"/api/v1/sessions/{session['session_id']}/report").json()["support_note"] is None
+
+
+# --- Company (FHGR postings) -------------------------------------------------------------------------
+
+def test_default_posting_per_occupation_and_language(fake, api):
+    client = fake()
+    session = start(api)  # informatiker_efz, de -> P-11
+    assert session["company"] == {"name": "Limmatcode GmbH", "place": "Zürich"}
+    assert session["interviewer"]["name"] == "Stefan Keller"
+    assert "You are Stefan Keller" in client.last_system and "Limmatcode GmbH" in client.last_system
+    assert start(api, occupation_id="kv_efz", language="fr")["company"]["place"] == "Lausanne"  # P-04
+    assert start(api, occupation_id="kv_efz", language="gsw")["company"]["place"] == "Bern"  # gsw uses de: P-03
+
+
+def test_explicit_posting_and_unknown_posting(fake, api):
+    fake()
+    assert start(api, posting_id="P-22")["company"]["name"] == "Schreinerei Casanova & Derungs"
+    resp = api.post("/api/v1/sessions", json={**SETUP, "posting_id": "P-99"})
+    assert resp.status_code == 400 and "posting_id" in resp.json()["error"]["message"]
+    assert any(p["id"] == "P-11" for p in api.get("/api/v1/config").json()["postings"])
+
+
+def test_company_facts_in_analysis_and_candidate_answers(fake, api):
+    client = fake()
+    session = start(api)
+    turn = run_until(api, session, "candidate_questions")
+    assert "A well-prepared candidate could know" in client.last_analysis_system
+    send(api, session["session_id"], turn["question"]["id"], "Wie sieht das erste Lehrjahr aus?")
+    assert "Answer it briefly as the company" in client.last_system and "Basislehrjahr" in client.last_system

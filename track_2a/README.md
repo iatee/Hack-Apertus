@@ -64,8 +64,11 @@ Browser (React) ──> FastAPI backend ──> LangGraph turn ──> Apertus v
   a criterion) and writes a short tip.
   An *interviewer call* then asks the next question or a follow-up.
 - **The phase flow is decided in code, not by the LLM,** so every interview follows the same structure:
-  intro (1 question) → motivation (2) → strengths/weaknesses (2) → situational (2) → candidate questions → closing.
-  That makes 8 main questions. Each phase allows at most one follow-up when an answer is vague.
+  intro (2 questions) → motivation (3) → strengths/weaknesses (3) → situational (3) → candidate questions → closing.
+  That makes 12 main questions (FHGR: 10-15). Each phase allows at most one follow-up when an answer is vague.
+- **A real company.** Each session uses an FHGR posting (fictional company, real occupation): the interviewer
+  plays the posting's trainer, answers the candidate's questions as the company, and the analysis knows
+  what a well-prepared candidate could know about it (`preparation`).
   In the candidate-questions phase the candidate asks and the interviewer answers; the question is
   analysed for `initiative`.
 - **Robust JSON.** The model's output is repaired in code where possible (code fences, extra text,
