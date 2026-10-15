@@ -54,6 +54,10 @@ ADDRESS = {
 }
 ADDRESS["gsw"] = ADDRESS["de"]
 
+# "not yet" instead of "not" (FHGR feedback rules), in the tip's language: the English phrase in the prompt made the
+# model start a Mundart tip with "Not yet: ..."
+NOT_YET = {"de": "noch nicht", "fr": "pas encore", "it": "non ancora"}
+
 # Fixed closing line when the candidate has no more questions (saves an LLM call). Key: (language, formal).
 CLOSING = {
     ("de", False): "Vielen Dank{name}! Es hat mich gefreut, dich kennenzulernen. Wir melden uns bald bei dir.",
@@ -258,7 +262,9 @@ def analysis_messages(occupation: dict, language: str, phase: str, question: str
         f"{_previous_tips(previous_tips)}"
         'Set "follow_up" to true if the answer is vague or incomplete and a follow-up question would help.\n'
         f'Write "short_tip" (one or two short sentences) in {LANGUAGES[language]}. {ADDRESS[language]} The tip is '
-        "about the answer, not the person (no labels like 'shy'); say 'not yet' instead of 'not'.\n"
+        f"about the answer, not the person (no labels like 'shy'); say '{NOT_YET[language]}' instead of a plain "
+        "'not'. Only use facts the candidate said: no placeholders in square brackets and no invented details "
+        "(age, school, hobbies).\n"
         f"{_TIP_RULES}\n"
         '"problem_flags": usually an empty list. Add a flag only if it clearly applies:\n'
         f"{flags}\n"
@@ -403,6 +409,12 @@ def _occupation_hint(occupation: dict, phase: str, mode: str) -> str:
     """With real occupation facts the situational questions can be about real tasks instead of generic ones."""
     if not occupation.get("knowledge") or mode in _CLOSING_MODES or phase not in ("motivation", "situational"):
         return ""
+    if phase == "motivation":
+        # "What would you do in such a task" here made a tester's motivation question a situational one
+        # (planning time and costs under "Motivation"), so the phase shown seemed wrong.
+        return ("The typical tasks of the occupation are given above. If the goal is about the occupation, you may name "
+                "one of these tasks and ask what attracts the candidate to it or what they already know about it. "
+                "Do not ask how they would do a task; that comes later in the interview.\n")
     return ("The typical tasks of the occupation are given above. When a question is about the occupation, base it on one "
             "of these tasks (e.g. ask what the candidate would do in such a task, or what they already know about it) "
             "instead of asking something generic.\n")
@@ -507,8 +519,8 @@ def _report_example(criteria: list[str], language: str = "de") -> dict:
 _FEEDBACK_RULES = (
     "Feedback rules: strengths first, then at most 1-2 points to improve per criterion. Back every point with a "
     "quote or a concrete moment from the interview; if there is no evidence, say so instead of guessing. Talk "
-    "about the answer, never the person: no labels like 'shy', 'unmotivated' or 'introverted'. Say 'not yet' "
-    "instead of 'not'. No exaggerated praise ('perfect') and no drama. Never create fear about finding an "
+    "about the answer, never the person: no labels like 'shy', 'unmotivated' or 'introverted'. Say 'not yet' (in "
+    "the language of the feedback) instead of 'not'. No exaggerated praise ('perfect') and no drama. Never create fear about finding an "
     "apprenticeship and never compare with other young people. Do not judge dialect, spelling or nervousness, and "
     "never criticise single words: spoken answers are transcribed automatically and may contain wrong words. "
     "Spoken answers are naturally long and less ordered than written ones; that is no reason to criticise. "
@@ -537,8 +549,11 @@ def report_messages(occupation: dict, language: str, scores: dict[str, int], ana
         f"below 4, one small next step ('{next_time}'). The tone of each comment must match its score (see "
         "'comment tone' next to each score): 3 and 4 are good scores. Describe what the candidate said or did, never "
         "what kind of person they are, and never write 'Your answers were ...' in any language. As evidence an EXACT quote (a few "
-        "words) from the CANDIDATE's answers, or an empty string if there is none.\n"
-        "- strengths: 2-3 strengths, each referring to something the candidate actually said.\n"
+        "words) from the CANDIDATE's answers, or an empty string if there is none. Use a different quote for each "
+        "criterion.\n"
+        # A tester saw "you gave a concrete example" as a strength next to "concrete examples: 1 of 4"
+        "- strengths: 2-3 strengths, each referring to something the candidate actually said. A strength may only "
+        "be about a criterion with score 3 or 4, never about one with score 1 or 2.\n"
         "- improvements: 2-3 concrete tips, each referring to one of the candidate's answers, with a short "
         "example of a better answer. The example answer is what the candidate could say, in the first person "
         "('Ich ...'), not a description. It may only use facts the candidate mentioned; for anything "

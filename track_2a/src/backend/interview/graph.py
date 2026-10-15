@@ -151,6 +151,19 @@ def _honest_tip(tip: str, quality: Optional[str]) -> str:
     return rest[:1].upper() + rest[1:] if rest else tip
 
 
+# A Mundart tip started with the English "Not yet:" (from the prompt) and kept placeholders like "[subjects]"
+_ENGLISH_START = re.compile(r"^\s*not yet\b\s*[:,.-]?\s*", re.IGNORECASE)
+_PLACEHOLDER = re.compile(r"\[[^\]]+\]")
+
+
+def _clean_tip(tip: str) -> str:
+    """Drops an English "Not yet:" at the start; a tip with an unfilled placeholder is not shown at all."""
+    if _PLACEHOLDER.search(tip):
+        return ""
+    rest = _ENGLISH_START.sub("", tip, count=1)
+    return rest[:1].upper() + rest[1:]
+
+
 # "I don't know" is an honest (weak) answer, not nonsense: it is scored as usual
 _DONT_KNOW = re.compile(r"\b((weiss|weiß|weis) (ich )?(es )?(nicht|nöd|nid)|keine ahnung|kei ahnig|je ne sais pas|"
                         r"aucune idée|non lo so|non so)\b", re.IGNORECASE)
@@ -198,7 +211,7 @@ async def run_analysis(occupation: dict, language: str, phase: str, question: st
         if _no_real_answer(entry, answer) and "unclear_or_meta" not in entry["problem_flags"]:
             entry["problem_flags"].append("unclear_or_meta")  # the interviewer says so and asks again (clarify)
         entry["follow_up"] = bool(entry.get("follow_up")) or len(answer.split()) < SHORT_ANSWER_WORDS
-        entry["short_tip"] = _honest_tip(entry.get("short_tip") or "", answer_quality(entry))
+        entry["short_tip"] = _clean_tip(_honest_tip(entry.get("short_tip") or "", answer_quality(entry)))
         if "unclear_or_meta" in entry["problem_flags"]:
             # Nothing to judge: no scores (they would pull the report down) and no tip
             entry.update(scores={key: None for key in entry["scores"]}, short_tip="", follow_up=False)

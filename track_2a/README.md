@@ -20,23 +20,24 @@ Team: Iago (backend), Anina (frontend)
 
 ## Screenshots
 
-The feedback screen after a real test interview (informatics apprenticeship, dictated answers):
+A test interview in the browser (Architekturmodellbauer/in EFZ, German, typed answers):
 
-![Feedback: strengths, overall score and the scores per criterion](docs/screenshots/feedback-scores.png)
+| Setup | Interview start | Chat |
+|---|---|---|
+| ![Setup: language, apprenticeship and start](docs/screenshots/01-setup.jpg) | ![The interviewer asks the first question](docs/screenshots/02-interview-start.jpg) | ![Chat with phase and question number](docs/screenshots/03-interview-chat.jpg) |
 
-![Feedback: tips with example answers, and a comment per criterion](docs/screenshots/feedback-tips.png)
+| End | Feedback | Scores | Tips |
+|---|---|---|---|
+| ![The interview is done](docs/screenshots/04-abschluss.jpg) | ![Strengths and overall score](docs/screenshots/05-feedback-uebersicht.jpg) | ![Score and comment per criterion](docs/screenshots/06-feedback-werte.jpg) | ![Tips with example answers](docs/screenshots/07-feedback-tipps.jpg) |
 
-![Feedback: what to practise next, and criteria the interview showed nothing about](docs/screenshots/feedback-next.png)
+Fixed after these screenshots were taken:
 
-These screenshots show an earlier version. Since then:
-
-- The feedback screen puts the plan first: strengths, tips with example answers, then "Genau das üben". The overall
-  score, the chart and every criterion with its comment are folded behind "Alle 11 Kriterien ansehen" (for teachers
-  and the curious).
-- The levels read "Noch am Anfang / Auf dem Weg / Gut / Sehr gut", and level 1 is amber instead of red.
-- The comments start with what worked in one concrete answer and give one small next step, instead of "Die Antworten
-  waren teilweise schwer zu folgen" (see [technical_report.md](technical_report.md), section 5), and their tone
-  follows the score.
+- The end card counted every message ("16 Fragen") instead of the 12 main questions shown during the interview.
+- The same quote could be shown as evidence for several criteria; now each quote appears once.
+- A strength could praise something whose criterion scored 1 (e.g. concrete examples); strengths now only come
+  from criteria with 3 or 4.
+- In the motivation phase the interviewer could ask how the candidate would do a task (as in the chat screenshot);
+  those questions now come in the situational phase.
 
 ## Results in short
 

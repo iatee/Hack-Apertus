@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend import llm, main
-from backend.interview.graph import InterviewEngine
+from backend.interview.graph import InterviewEngine, _clean_tip
 from backend.interview.parsing import MAX_JSON_ATTEMPTS
 from backend.interview.prompts import CRITERIA
 
@@ -249,7 +249,9 @@ def test_report_is_generated_once_then_cached(fake, api):
     assert report["overall_score"] == 3.0 and len(report["criteria"]) == len(CRITERIA) == 11
     assert report["scale"] == {"min": 1, "max": 4}
     assert report["criteria"][5] == {"id": "concrete_examples", "label": "Konkrete Beispiele", "score": 3,
-                                     "comment": "Kommentar concrete_examples.", "evidence": "baue gerne PCs"}
+                                     "comment": "Kommentar concrete_examples.", "evidence": ""}
+    # The fake quotes the same words for every criterion: they are shown only once, for the first one
+    assert [c["evidence"] for c in report["criteria"] if c["evidence"]] == ["baue gerne PCs"]
     assert report["strengths"] and report["improvements"][0]["example_answer"]
     assert report["next_practice"] == ["clarity", "relevance"]  # ties keep rubric order
 
@@ -1083,3 +1085,10 @@ def test_report_prompt_matches_each_comment_tone_to_its_score():
     assert "no next step" in lines["clarity"]
     assert "must not read like criticism" in lines["relevance"]
     assert "clear, simple next step" in lines["initiative"]
+
+
+def test_a_tip_with_an_english_start_or_a_placeholder_is_cleaned():
+    # A Mundart tip came as "Not yet: ..." with "[subjects]" in it
+    assert _clean_tip("Not yet: säg no, was du gern machsch.") == "Säg no, was du gern machsch."
+    assert _clean_tip("Nenne deine Lieblingsfächer, z.B. [subjects].") == ""
+    assert _clean_tip("Gut: du hast ein Beispiel genannt.") == "Gut: du hast ein Beispiel genannt."
