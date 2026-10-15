@@ -428,7 +428,8 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
               <LogoFan />
               <p className="mt-5 text-2xl font-bold">{text.finished}</p>
               <p className="mx-auto mt-1 mb-5 max-w-xs text-charcoal-soft">
-                {text.finishedCount.replace("{count}", String(messages.filter((m) => m.role === "candidate").length))}
+                {/* The same number as "Frage x von 12" in the header: follow-ups and own questions don't count */}
+                {text.finishedCount.replace("{count}", String(progress.total || messages.filter((m) => m.role === "candidate").length))}
               </p>
               <PrimaryButton onClick={onFinished}>{text.showFeedback}</PrimaryButton>
               <TextButton onClick={onRestart} className="mx-auto mt-3 block">

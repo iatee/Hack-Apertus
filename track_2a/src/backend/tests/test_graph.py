@@ -249,7 +249,9 @@ def test_report_is_generated_once_then_cached(fake, api):
     assert report["overall_score"] == 3.0 and len(report["criteria"]) == len(CRITERIA) == 11
     assert report["scale"] == {"min": 1, "max": 4}
     assert report["criteria"][5] == {"id": "concrete_examples", "label": "Konkrete Beispiele", "score": 3,
-                                     "comment": "Kommentar concrete_examples.", "evidence": "baue gerne PCs"}
+                                     "comment": "Kommentar concrete_examples.", "evidence": ""}
+    # The fake quotes the same words for every criterion: they are shown only once, for the first one
+    assert [c["evidence"] for c in report["criteria"] if c["evidence"]] == ["baue gerne PCs"]
     assert report["strengths"] and report["improvements"][0]["example_answer"]
     assert report["next_practice"] == ["clarity", "relevance"]  # ties keep rubric order
 

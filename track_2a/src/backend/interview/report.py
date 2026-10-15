@@ -215,14 +215,20 @@ async def build_report(session_id: str, state: dict, occupation: Optional[dict] 
                                ensure_ascii=False))
 
     criteria = []
+    quoted = set()  # a quote is shown once: a tester saw the same intro sentence as evidence for three criteria
     for key in CRITERIA:  # all 11 in rubric order; not observed ones have score None
         note = draft.criteria.get(key) if key in scores else None
+        evidence = _verified_evidence(note.evidence, candidate_texts) if note else ""
+        if _norm(evidence) in quoted:
+            evidence = ""
+        elif evidence:
+            quoted.add(_norm(evidence))
         criteria.append({
             "id": key,
             "label": rubric.label(key, language),
             "score": scores.get(key),
             "comment": (note.comment if note else "") if key in scores else rubric.NOT_OBSERVED[language],
-            "evidence": _verified_evidence(note.evidence, candidate_texts) if note else "",
+            "evidence": evidence,
         })
 
     return {
