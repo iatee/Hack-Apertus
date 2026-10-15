@@ -29,9 +29,22 @@ const LazyFeedback = lazy(loadFeedback);
 
 type Screen = "setup" | "auth" | "interview" | "feedback";
 
+// The chosen language survives a reload (a tester was back on "Deutsch" after reloading)
+const LANGUAGE_KEY = "language";
+const LANGUAGES: LanguageCode[] = ["de", "fr", "it", "gsw"];
+
+function storedLanguage(): LanguageCode {
+  try {
+    const saved = localStorage.getItem(LANGUAGE_KEY) as LanguageCode | null;
+    return saved && LANGUAGES.includes(saved) ? saved : "de";
+  } catch {
+    return "de"; // storage blocked (private mode): start in German
+  }
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("setup");
-  const [language, setLanguage] = useState<LanguageCode>("de");
+  const [language, setLanguage] = useState<LanguageCode>(storedLanguage);
   // Logged-in user (null = not logged in). The token itself lives in auth.ts.
   const [user, setUser] = useState<User | null>(getStoredUser);
   // The interview that is open (new or saved)
@@ -46,6 +59,11 @@ export default function App() {
   // Screen readers pronounce the page in this language (Mundart: Swiss German)
   useEffect(() => {
     document.documentElement.lang = locale(language);
+    try {
+      localStorage.setItem(LANGUAGE_KEY, language);
+    } catch {
+      // not saved: the next visit starts in German
+    }
   }, [language]);
 
   // While the candidate answers, get the feedback screen ready, so it opens without waiting

@@ -50,5 +50,7 @@ export function fromServer(d: SavedInterviewDetail, summary: string): SavedInter
     company: d.company,
     interviewer: d.interviewer,
     report: d.report ?? undefined,
+    // Without it a resumed interview showed "Phase 1 von 6" instead of "Frage 1 von 12"
+    progress: d.progress,
   };
 }

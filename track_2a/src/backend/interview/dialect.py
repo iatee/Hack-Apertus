@@ -26,13 +26,25 @@ DEFAULT_DIALECT = "zh"
 # Typical phrases of an interviewer that the question bank does not contain (praise, thanks, transitions).
 PHRASES = {
     "zh": [
+        # Written by a native speaker from Zürich (2026-10-16), in the style young people use in chats.
+        # The model had written e.g. "Seid ihr sicher ...", "Was mögt ihr am liebschte koche oder esse?"
+        ("Hallo, ich bin Lea Baumann von der SwissTech Anlagen AG. Wie geht es dir? Erzähl mir kurz, wer du bist und "
+         "was dich gerade interessiert.",
+         "Hallo, ich bin d Lea vo de SwissTech Anlagen AG. Wie gaht's dir? Verzell mir churz, wer du bisch und was "
+         "dich grad so interessiert."),
+        ("Hallo! Bist du sicher, dass die Technik funktioniert? Erzähl mir kurz von deinen Lieblingsgerichten und ob "
+         "du zu Hause schon kochst.",
+         "Hallo! Bisch du sicher, dass d Technik funktioniert? Verzell mir churz über dis Lieblingsässe und öb du "
+         "dihei scho chochsch."),
+        ("Was machst du lieber, kochen oder essen?", "Was machsch lieber, choche oder esse?"),
+        # Adapted to the same style
         ("Das klingt toll, Lara!", "Das tönt super, Lara!"),
         ("Danke für deine Antwort.", "Merci für dini Antwort."),
-        ("Erzähl mir doch ein bisschen von dir.", "Verzell mer doch es bitzeli öppis vo dir."),
-        ("Was machst du, wenn du nicht weiterkommst?", "Was machsch, wänn du nöd wiiterchunsch?"),
-        ("Kannst du mir ein Beispiel nennen?", "Chasch mer es Bispiil nenne?"),
-        ("Wie bist du darauf gekommen, diesen Beruf zu lernen?", "Wie bisch uf die Idee cho, de Bruef z lehre?"),
-        ("Das ist eine gute Frage. Ich freue mich, dich kennenzulernen.", "Das isch e gueti Frag. Ich fröi mi, dich känne z lehre."),
+        ("Erzähl mir doch ein bisschen von dir.", "Verzell mir doch chli öppis vo dir."),
+        ("Was machst du, wenn du nicht weiterkommst?", "Was machsch du, wänn du nöd wiiterchunsch?"),
+        ("Kannst du mir ein Beispiel nennen?", "Chasch mir es Bispiel nenne?"),
+        ("Wie bist du darauf gekommen, diesen Beruf zu lernen?", "Wie bisch du uf d Idee cho, dä Bruef z lerne?"),
+        ("Das ist eine gute Frage. Ich freue mich, dich kennenzulernen.", "Das isch e gueti Frag. Ich freu mi, dich kännezlerne."),
     ],
     "be": [
         ("Das klingt toll, Lara!", "Das tönt super, Lara!"),
@@ -111,7 +123,9 @@ def examples(dialect: str, text: str = "") -> list[tuple[str, str]]:
 def messages(text: str, dialect: str, formal: bool) -> list[dict]:
     name = DIALECTS[dialect]
     shots = "\n".join(f"Standard German: {de}\n{name}: {gsw}" for de, gsw in examples(dialect, text))
-    address = 'Keep the formal "Sie" (dialect: "Sie").' if formal else 'Address the person with "du".'
+    # A tester got "du" in the first question and "Seid ihr sicher ...?" in the second
+    address = ('Keep the formal "Sie" (dialect: "Sie").' if formal else
+               'Address the person with "du" (one person): turn every "Sie" or "ihr" that speaks to them into "du".')
     system = (
         f"You translate Standard German into Swiss German dialect ({name}), written the way Swiss people write in "
         "chats (phonetic spelling, e.g. isch, nöd, chli, gärn, hesch, bisch, öppis, gsi). Change every word that is "

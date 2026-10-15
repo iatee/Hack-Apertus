@@ -54,6 +54,10 @@ ADDRESS = {
 }
 ADDRESS["gsw"] = ADDRESS["de"]
 
+# "not yet" instead of "not" (FHGR feedback rules), in the tip's language: the English phrase in the prompt made the
+# model start a Mundart tip with "Not yet: ..."
+NOT_YET = {"de": "noch nicht", "fr": "pas encore", "it": "non ancora"}
+
 # Fixed closing line when the candidate has no more questions (saves an LLM call). Key: (language, formal).
 CLOSING = {
     ("de", False): "Vielen Dank{name}! Es hat mich gefreut, dich kennenzulernen. Wir melden uns bald bei dir.",
@@ -258,7 +262,9 @@ def analysis_messages(occupation: dict, language: str, phase: str, question: str
         f"{_previous_tips(previous_tips)}"
         'Set "follow_up" to true if the answer is vague or incomplete and a follow-up question would help.\n'
         f'Write "short_tip" (one or two short sentences) in {LANGUAGES[language]}. {ADDRESS[language]} The tip is '
-        "about the answer, not the person (no labels like 'shy'); say 'not yet' instead of 'not'.\n"
+        f"about the answer, not the person (no labels like 'shy'); say '{NOT_YET[language]}' instead of a plain "
+        "'not'. Only use facts the candidate said: no placeholders in square brackets and no invented details "
+        "(age, school, hobbies).\n"
         f"{_TIP_RULES}\n"
         '"problem_flags": usually an empty list. Add a flag only if it clearly applies:\n'
         f"{flags}\n"
@@ -513,8 +519,8 @@ def _report_example(criteria: list[str], language: str = "de") -> dict:
 _FEEDBACK_RULES = (
     "Feedback rules: strengths first, then at most 1-2 points to improve per criterion. Back every point with a "
     "quote or a concrete moment from the interview; if there is no evidence, say so instead of guessing. Talk "
-    "about the answer, never the person: no labels like 'shy', 'unmotivated' or 'introverted'. Say 'not yet' "
-    "instead of 'not'. No exaggerated praise ('perfect') and no drama. Never create fear about finding an "
+    "about the answer, never the person: no labels like 'shy', 'unmotivated' or 'introverted'. Say 'not yet' (in "
+    "the language of the feedback) instead of 'not'. No exaggerated praise ('perfect') and no drama. Never create fear about finding an "
     "apprenticeship and never compare with other young people. Do not judge dialect, spelling or nervousness, and "
     "never criticise single words: spoken answers are transcribed automatically and may contain wrong words. "
     "Spoken answers are naturally long and less ordered than written ones; that is no reason to criticise. "

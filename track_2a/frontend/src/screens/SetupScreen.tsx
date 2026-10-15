@@ -122,10 +122,12 @@ export default function SetupScreen({ language, onLanguageChange, onStarted, onO
     return config?.occupations.find((k) => (k.label.de ?? "").toLowerCase() === wanted);
   }
 
-  function summaryOf(occupationId: string, occupationName: string | null | undefined, lang: LanguageCode, m: Mode) {
+  /** `shownIn`: the language of the words (the list uses the screen's language, an opened interview its own). */
+  function summaryOf(occupationId: string, occupationName: string | null | undefined, lang: LanguageCode, m: Mode,
+                     shownIn: LanguageCode = lang) {
     const known = config?.occupations.find((o) => o.id === occupationId);
-    const name = occupationName || (known ? label(known.label, lang) : "");
-    return [name, languageNames[lang], t(lang).modes[m]].filter(Boolean).join(" · ");
+    const name = occupationName || (known ? label(known.label, shownIn) : "");
+    return [name, languageNames[lang], t(shownIn).modes[m]].filter(Boolean).join(" · ");
   }
 
   async function openRemote(item: InterviewListItem) {
@@ -485,8 +487,10 @@ export default function SetupScreen({ language, onLanguageChange, onStarted, onO
                 <li key={item.session_id} className="flex items-center gap-2 rounded-2xl bg-white shadow-card">
                   <button onClick={() => openRemote(item)} className="min-w-0 flex-1 px-4 py-3 text-left">
                     <p className="truncate font-bold">
-                      {summaryOf(item.occupation_id, item.occupation_name, item.language, item.mode)}
-                      {item.overall_score !== null && " · Ø " + item.overall_score}
+                      {summaryOf(item.occupation_id, item.occupation_name, item.language, item.mode, language)}
+                      {/* "2,2 von 4" like on the feedback screen, not "Ø 2.2" */}
+                      {item.overall_score !== null &&
+                        ` · ${item.overall_score.toLocaleString(locale(language))} ${text.outOf}`}
                     </p>
                     <p className="text-sm text-charcoal-soft">
                       {new Date(item.created_at).toLocaleString(locale(language))}
@@ -496,7 +500,7 @@ export default function SetupScreen({ language, onLanguageChange, onStarted, onO
                   <button
                     onClick={() => handleDeleteInterview(item.session_id)}
                     // "Löschen" alone is the same in every row: screen readers also hear which interview
-                    aria-label={`${text.deleteInterview}: ${summaryOf(item.occupation_id, item.occupation_name, item.language, item.mode)}`}
+                    aria-label={`${text.deleteInterview}: ${summaryOf(item.occupation_id, item.occupation_name, item.language, item.mode, language)}`}
                     className="mr-2 min-h-11 shrink-0 rounded-full px-4 text-sm font-bold text-danger hover:bg-danger-lighter"
                   >
                     {text.deleteInterview}
