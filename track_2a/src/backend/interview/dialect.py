@@ -37,6 +37,11 @@ PHRASES = {
          "Hallo! Bisch du sicher, dass d Technik funktioniert? Verzell mir churz über dis Lieblingsässe und öb du "
          "dihei scho chochsch."),
         ("Was machst du lieber, kochen oder essen?", "Was machsch lieber, choche oder esse?"),
+        # The model wrote "Wie heischsch du", "am gärnschte" and "in deiner Freizeit" (tester, 2026-10-16)
+        ("Wie heisst du, welche Schule besuchst du und was machst du gerne in deiner Freizeit?",
+         "Wie heissisch du, i weli Schuel gahsch du und was machsch du gern i dinere Freiziit?"),
+        ("Was gefällt dir am besten an diesem Beruf?", "Was gfallt dir am beschte a däm Bruef?"),
+        ("Was machst du am liebsten?", "Was machsch am liebschte?"),
         # Adapted to the same style
         ("Das klingt toll, Lara!", "Das tönt super, Lara!"),
         ("Danke für deine Antwort.", "Merci für dini Antwort."),

@@ -173,7 +173,11 @@ def _candidate_info(candidate: Optional[dict]) -> str:
     if not candidate:
         return ""
     parts = [f"{key.replace('_', ' ')}: {value}" for key, value in candidate.items() if value]
-    return "About the candidate: " + "; ".join(parts) + "\n" if parts else ""
+    if not parts:
+        return ""
+    # "Hallo Mike, ... Wie heisst du?" (tester, 2026-10-16): the name is known, asking for it sounds odd
+    known = "You already know the candidate's name: never ask for it.\n" if candidate.get("first_name") else ""
+    return "About the candidate: " + "; ".join(parts) + "\n" + known
 
 
 def _feedback_language(language: str) -> str:
