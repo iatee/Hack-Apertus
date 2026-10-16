@@ -65,7 +65,7 @@ async def lifespan(_: FastAPI):
         yield
 
 
-app = FastAPI(title="Schnupper Interview Coach", lifespan=lifespan)
+app = FastAPI(title="Bewerbär", lifespan=lifespan)
 api = APIRouter(prefix="/api/v1")
 store = Store()  # SQLite file (DB_PATH, default storage/app.db)
 limits = Limits()  # rate limits for login and registration

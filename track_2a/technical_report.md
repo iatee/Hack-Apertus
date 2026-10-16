@@ -1,4 +1,4 @@
-# Technical report — Schnupper Interview Coach
+# Technical report — Bewerbär
 
 An Apertus-based coach that runs realistic apprenticeship interviews with 14-16-year-olds in German, French,
 Italian and Swiss German, and gives them constructive, criteria-based feedback.

@@ -1,6 +1,6 @@
 # Frontend
 
-React web app of the Schnupper Interview Coach (Vite, React, TypeScript, Tailwind CSS, recharts).
+React web app of Bewerbär (Vite, React, TypeScript, Tailwind CSS, recharts).
 In Docker it is built and served by nginx on port 8080 (`make run` in `track_2a/`).
 
 ## Screens

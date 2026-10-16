@@ -1,4 +1,4 @@
-# API contract - Schnupper Interview Coach
+# API contract - Bewerbär
 
 Version: v1 (draft, 2026-10-06)
 Owners: Iago (backend), Anina (frontend)
