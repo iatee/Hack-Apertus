@@ -1,6 +1,8 @@
-# Schnupper Interview Coach
+# Bewerbär
 
 **Hack Apertus · Track 2A · FHGR: AI-Powered Job Interview Coach**
+
+*Bewerbär* = *Bewerbung* (job application) + *Bär* (bear): a friendly bear to practise the interview with.
 
 A practice job interview for school students (about 14-16) applying for an apprenticeship in Switzerland.
 The candidate picks an occupation, a language and an interviewer style, answers questions in a chat or by voice,

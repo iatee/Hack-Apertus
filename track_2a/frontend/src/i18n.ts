@@ -15,7 +15,7 @@ export const languageNames: Record<LanguageCode, string> = {
 const texts = {
   de: {
     // Setup screen
-    title: "Interview-Coach",
+    title: "Bewerbär",
     subtitle: "Übe dein Bewerbungsgespräch für die Lehrstelle – so oft du willst.",
     language: "Sprache",
     beta: "Beta",
@@ -210,7 +210,7 @@ const texts = {
     } satisfies Record<CriterionId, string>,
   },
   fr: {
-    title: "Coach d'entretien",
+    title: "Bewerbär",
     subtitle: "Entraîne-toi pour ton entretien d'apprentissage – autant que tu veux.",
     language: "Langue",
     beta: "Bêta",
@@ -403,7 +403,7 @@ const texts = {
     },
   },
   it: {
-    title: "Coach per colloqui",
+    title: "Bewerbär",
     subtitle: "Esercitati per il colloquio di apprendistato – quanto vuoi.",
     language: "Lingua",
     beta: "Beta",
