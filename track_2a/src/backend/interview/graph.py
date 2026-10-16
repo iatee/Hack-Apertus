@@ -285,6 +285,24 @@ def _drop_praise(text: str, language: str, turn: int) -> str:
     return f"{words[turn % len(words)]} {rest[0].upper()}{rest[1:]}"
 
 
+# A French interviewer started with "Gut, que tu aimes cuisiner ..." (2026-10-16): German words at the start of a
+# sentence are replaced. Only words that French and Italian do not have ("Super" and "Okay" stay).
+_GERMAN_WORDS = {
+    "fr": {"sehr gut": "Très bien", "gut": "Bien", "danke": "Merci", "genau": "Exactement", "toll": "Super",
+           "prima": "Super", "verstehe": "Je vois", "also": "Alors"},
+    "it": {"sehr gut": "Molto bene", "gut": "Bene", "danke": "Grazie", "genau": "Esatto", "toll": "Ottimo",
+           "verstehe": "Capisco", "also": "Allora"},
+}
+_GERMAN_START = re.compile(r"(^|[.!?]\s+)(sehr gut|gut|danke|genau|toll|prima|verstehe|also)\b", re.IGNORECASE)
+
+
+def _drop_german_words(text: str, language: str) -> str:
+    words = _GERMAN_WORDS.get(language)
+    if not words:
+        return text
+    return _GERMAN_START.sub(lambda m: m.group(1) + words.get(m.group(2).lower(), m.group(2)), text)
+
+
 # Goodbye sentences at the end of the reply: in answer_and_close the fixed goodbye is appended in code,
 # the model's own came on top. Only the end is checked, so "Wir melden uns bis Ende Monat." in the answer stays.
 _GOODBYE_SENTENCE = re.compile(
@@ -495,6 +513,7 @@ async def interviewer(state: InterviewState) -> dict:
         if mode in ("next_question", "new_phase", "follow_up") and quality not in POSITIVE:
             # Only a good answer may get positive feedback
             text = _drop_praise(text, written_in, state.get("question_count", 0))
+        text = _drop_german_words(text, written_in)
         if state["language"] == "gsw":
             german = text
             text = await swiss_german.to_dialect(text, dialect, style["formal"])

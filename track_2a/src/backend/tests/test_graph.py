@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend import llm, main
-from backend.interview.graph import InterviewEngine, _clean_tip
+from backend.interview.graph import InterviewEngine, _clean_tip, _drop_german_words
 from backend.interview.parsing import MAX_JSON_ATTEMPTS
 from backend.interview.prompts import CRITERIA
 
@@ -1092,3 +1092,11 @@ def test_a_tip_with_an_english_start_or_a_placeholder_is_cleaned():
     assert _clean_tip("Not yet: säg no, was du gern machsch.") == "Säg no, was du gern machsch."
     assert _clean_tip("Nenne deine Lieblingsfächer, z.B. [subjects].") == ""
     assert _clean_tip("Gut: du hast ein Beispiel genannt.") == "Gut: du hast ein Beispiel genannt."
+
+
+def test_german_words_at_a_sentence_start_are_replaced_in_french_and_italian():
+    assert _drop_german_words("Gut, que tu aimes cuisiner ! Quel est ton sujet préféré ?", "fr") == \
+        "Bien, que tu aimes cuisiner ! Quel est ton sujet préféré ?"
+    assert _drop_german_words("Danke. Prima di tutto, cosa ti piace?", "it") == "Grazie. Prima di tutto, cosa ti piace?"
+    assert _drop_german_words("Super, et pourquoi ?", "fr") == "Super, et pourquoi ?"
+    assert _drop_german_words("Gut, und warum?", "de") == "Gut, und warum?"
