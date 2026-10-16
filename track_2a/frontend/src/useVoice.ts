@@ -295,7 +295,7 @@ export function useVoice({ language, sessionId, voice, draft, setDraft, onSend, 
 
   // ---------- reading aloud ----------
 
-  /** Reads a text aloud. With `thenListen`, the microphone starts when reading is done. */
+  /** Reads a text aloud. With `thenListen`, hands-free waits for a tap on the microphone when reading is done. */
   async function say(key: number, text: string, thenListen = false) {
     unlockAudio(); // still inside the tap on "Vorlesen": later, after loading the audio, it would be too late
     stopMic();
@@ -331,7 +331,8 @@ export function useVoice({ language, sessionId, voice, draft, setDraft, onSend, 
     if (reading.current !== current) return; // stopped or replaced by a newer reading
     playback.current = null;
     setSpeakingKey(null);
-    if (thenListen) startMic();
+    // The microphone never starts by itself (testers thought it was broken): the candidate taps when ready
+    if (thenListen) setPaused(true);
   }
 
   function stopReading() {
