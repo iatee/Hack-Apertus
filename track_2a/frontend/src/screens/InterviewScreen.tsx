@@ -5,6 +5,7 @@ import Card from "../components/Card";
 import CallView, { type CallStatus } from "../components/CallView";
 import CardAccent from "../components/CardAccent";
 import Face from "../components/Face";
+import MicWave from "../components/MicWave";
 import { ArrowRight, Check, Headphones, Lightbulb, Mic, Speaker, Stop } from "../components/icons";
 import PrimaryButton from "../components/PrimaryButton";
 import TextButton from "../components/TextButton";
@@ -79,7 +80,7 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
-  // Hands-free: read each new interviewer message aloud, then listen for the answer.
+  // Hands-free: read each new interviewer message aloud, then wait until the candidate taps the microphone.
   // The tip is only shown, not read: it interrupted the conversation.
   const lastInterviewerIndex = messages.findLastIndex((m) => m.role === "interviewer");
   useEffect(() => {
@@ -496,7 +497,8 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
                   submit();
                 }
               }}
-              placeholder={text.answerPlaceholder}
+              // Whisper writes only after the recording: without this the field stayed empty and it looked broken
+              placeholder={voice.transcribing ? text.transcribing : voice.listening ? text.listenNow : text.answerPlaceholder}
               aria-label={text.answerPlaceholder}
               maxLength={MAX_ANSWER}
               rows={1}
@@ -509,10 +511,14 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
                 aria-label={text.voiceInput}
                 aria-pressed={voice.listening}
                 className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 ${
-                  voice.listening ? "animate-pulse border-logo-red bg-logo-red text-white" : "border-line bg-white text-charcoal"
+                  voice.listening
+                    ? "border-logo-red bg-logo-red text-white"
+                    : voice.transcribing
+                      ? "animate-pulse border-brand bg-brand-lighter text-brand"
+                      : "border-line bg-white text-charcoal"
                 }`}
               >
-                <Mic />
+                {voice.listening ? <MicWave /> : <Mic />}
               </button>
             )}
             <button
@@ -527,7 +533,9 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
           <p className="mt-2 text-center text-sm text-charcoal-soft tabular-nums">
             {draft.length >= SHOW_COUNT_FROM
               ? text.answerLimit.replace("{count}", String(draft.length)).replace("{max}", String(MAX_ANSWER))
-              : voice.listening && language === "gsw"
+              : voice.transcribing
+                ? text.transcribing
+                : voice.listening && language === "gsw"
                 ? text.mundartListening
                 : voice.handsFree
                   ? text.voiceModeHint
