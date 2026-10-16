@@ -496,7 +496,8 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
                   submit();
                 }
               }}
-              placeholder={text.answerPlaceholder}
+              // Whisper writes only after the recording: without this the field stayed empty and it looked broken
+              placeholder={voice.transcribing ? text.transcribing : voice.listening ? text.listenNow : text.answerPlaceholder}
               aria-label={text.answerPlaceholder}
               maxLength={MAX_ANSWER}
               rows={1}
@@ -509,7 +510,11 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
                 aria-label={text.voiceInput}
                 aria-pressed={voice.listening}
                 className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 ${
-                  voice.listening ? "animate-pulse border-logo-red bg-logo-red text-white" : "border-line bg-white text-charcoal"
+                  voice.listening
+                    ? "animate-pulse border-logo-red bg-logo-red text-white"
+                    : voice.transcribing
+                      ? "animate-pulse border-brand bg-brand-lighter text-brand"
+                      : "border-line bg-white text-charcoal"
                 }`}
               >
                 <Mic />
@@ -527,7 +532,9 @@ export default function InterviewScreen({ entry, onRestart, onFinished, guest = 
           <p className="mt-2 text-center text-sm text-charcoal-soft tabular-nums">
             {draft.length >= SHOW_COUNT_FROM
               ? text.answerLimit.replace("{count}", String(draft.length)).replace("{max}", String(MAX_ANSWER))
-              : voice.listening && language === "gsw"
+              : voice.transcribing
+                ? text.transcribing
+                : voice.listening && language === "gsw"
                 ? text.mundartListening
                 : voice.handsFree
                   ? text.voiceModeHint
